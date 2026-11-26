@@ -127,7 +127,7 @@ function markTried(ans) {
   if (S.cur.q.type === 'mcq') { var b = $('.ch[data-l="' + String(ans).replace(/"/g, '') + '"]'); if (b) { b.classList.add('tried'); b.disabled = true; } }
   else $('#q-prev').innerHTML = 'Your answer: <s>' + esc(ans) + '</s>';
 }
-function showHint(html) { $('#q-hintbox').innerHTML = '<div class="hint"><b>Hint</b>' + html + '</div>'; var hb = $('#q-hint'); if (hb) hb.disabled = true; typeset($('#q-hintbox')); }
+function showHint(html) { $('#q-hintbox').innerHTML = '<div class="hint"><span class="lab">Hint</span>' + html + '</div>'; var hb = $('#q-hint'); if (hb) hb.disabled = true; typeset($('#q-hintbox')); }
 $('#q-card').addEventListener('click', function (ev) {
   var ch = ev.target.closest('.ch');
   if (ch && !ch.disabled && !S.busy) { $$('.ch').forEach(function (b) { b.classList.toggle('sel', b === ch); }); S.sel = ch.getAttribute('data-l'); return; }
