@@ -1,0 +1,729 @@
+/**
+ * SAT Math Lib — teacher page (spec v1.1 §2.2, §7, §8, §9). Every call checks Settings.teacher_code (requireTeacher_).
+ *   teacherHome · createStudent · editStudent · saveClass · classView · questionPanel · tagMistake · resolveAsk · asksInbox
+ *   studentProfile · assignmentTree · pickAssignment · publishAssignment · closeAssignment
+ * Student side of assignments: assignmentsFor_ (home card) · startAssignment.
+ * The teacher sees keys (questionPanel) — students never do. Short codes (E326) are shown big with a copy button (BRAIN #64, #69).
+ */
+
+var CODE_CHARS_ = 'ACDEFGHJKLMNPQRTUVWXY3479';
+
+/* ============================== students + classes ============================== */
+function initials_(name) {
+  var s = String(name || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'D').toUpperCase().replace(/\(.*?\)/g, ' ');
+  var w = s.split(/[^A-Z]+/).filter(String);
+  var ini = w.length >= 2 ? w[w.length - 1].charAt(0) + w[0].charAt(0) : (w[0] || 'ST').slice(0, 2);
+  return (ini + 'X').slice(0, 2);
+}
+function newStudentCode_(name, taken) {
+  for (var k = 0; k < 200; k++) {
+    var c = initials_(name) + '-';
+    for (var i = 0; i < 3; i++) c += CODE_CHARS_.charAt(Math.floor(Math.random() * CODE_CHARS_.length));
+    if (!taken[c] && !isTeacherCode_(c)) return c;
+  }
+  throw new Error('FORM: Could not make a new code. Try again.');
+}
+/** Sheet-created students without a code get one; Students.classes = names of their classes (read-only mirror). */
+function syncStudents_() {
+  var st = readTable_('Students'), taken = {}, filled = 0;
+  st.rows.forEach(function (r) { var c = normCode_(r.student_code); if (c) taken[c] = 1; });
+  var cls = readTable_('Classes').rows.filter(function (c) { return c.class_id && (c.active === '' || isYes_(c.active)); });
+  var mirror = {};
+  cls.forEach(function (c) { codesOf_(c.student_codes).forEach(function (sc) { (mirror[sc] = mirror[sc] || []).push(String(c.name || c.class_id)); }); });
+  st.rows.forEach(function (r) {
+    var f = {}, c = normCode_(r.student_code);
+    if (!c && String(r.name || '').trim()) { c = newStudentCode_(r.name, taken); taken[c] = 1; f.student_code = c; f.created_in = r.created_in || 'sheet'; if (!r.created_at) f.created_at = nowIso_(); if (r.active === '') f.active = 'Yes'; filled++; }
+    var m = (mirror[c] || []).join(', ');
+    if (c && String(r.classes || '') !== m) f.classes = m;
+    if (Object.keys(f).length) updateRow_('Students', r._row, f);
+  });
+  return 'students: ' + st.rows.length + (filled ? ', codes issued: ' + filled : '');
+}
+function codesOf_(v) { return String(v || '').split(/[,;\s]+/).map(normCode_).filter(String); }
+
+function createStudent(code, name, classIds) {
+  requireTeacher_(code);
+  name = String(name || '').trim().slice(0, 60);
+  if (!name) throw new Error('FORM: Type the student\'s name.');
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var taken = {}; readTable_('Students').rows.forEach(function (r) { taken[normCode_(r.student_code)] = 1; });
+    var sc = newStudentCode_(name, taken);
+    appendObjects_('Students', [{ student_code: sc, name: name, active: 'Yes', created_in: 'app', created_at: nowIso_() }]);
+    (classIds || []).forEach(function (cid) {
+      var c = readTable_('Classes').rows.filter(function (x) { return String(x.class_id) === String(cid); })[0];
+      if (c) updateRow_('Classes', c._row, { student_codes: codesOf_(c.student_codes).concat([sc]).join(', ') });
+    });
+    syncStudents_();
+    return { ok: true, student_code: sc, name: name };
+  } finally { lock.releaseLock(); }
+}
+function editStudent(code, sc, f) {
+  requireTeacher_(code);
+  var st = findStudent_(sc); if (!st) throw new Error('FORM: Student not found.');
+  var u = {};
+  if (f && f.name !== undefined && String(f.name).trim()) u.name = String(f.name).trim().slice(0, 60);
+  if (f && f.active !== undefined) u.active = f.active ? 'Yes' : 'No';
+  updateRow_('Students', st._row, u);
+  return { ok: true };
+}
+/** New or changed class: name + members. cls = {class_id?, name, student_codes: [], active?} */
+function saveClass(code, cls) {
+  requireTeacher_(code);
+  var name = String(cls && cls.name || '').trim().slice(0, 60);
+  if (!name) throw new Error('FORM: Type a class name.');
+  var known = {}; readTable_('Students').rows.forEach(function (r) { known[normCode_(r.student_code)] = 1; });
+  var members = (cls.student_codes || []).map(normCode_).filter(function (c, i, a) { return known[c] && a.indexOf(c) === i; });
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var t = readTable_('Classes'), row = cls.class_id ? t.rows.filter(function (x) { return String(x.class_id) === String(cls.class_id); })[0] : null;
+    var f = { name: name, student_codes: members.join(', '), active: cls.active === false ? 'No' : 'Yes' };
+    var id, closed = 0;
+    if (row) {
+      updateRow_('Classes', row._row, f); id = String(row.class_id);
+      if (cls.active === false) readTable_('Assignments').rows.forEach(function (a) {   // archive: its open assignments close (#42)
+        if (String(a.target_type) === 'class' && String(a.target_id) === id && String(a.status) === 'published') { updateRow_('Assignments', a._row, { status: 'closed' }); closed++; }
+      });
+    }
+    else {
+      var n = 0; t.rows.forEach(function (x) { var m = /^C-(\d+)$/.exec(String(x.class_id)); if (m) n = Math.max(n, Number(m[1])); });
+      id = 'C-' + ('00' + (n + 1)).slice(-3);
+      f.class_id = id; f.created_in = 'app'; appendObjects_('Classes', [f]);
+    }
+    syncStudents_();
+    return { ok: true, class_id: id, closed: closed };
+  } finally { lock.releaseLock(); }
+}
+
+/* ============================== teacher home ============================== */
+function lastActivity_(sets) {
+  var ms = 0; sets.forEach(function (s) { ms = Math.max(ms, toMs_(s.submitted_at) || toMs_(s.last_saved_at) || toMs_(s.created_at)); });
+  return ms;
+}
+function teacherHome(code) {
+  cachedReads_();                                                   // read-only: snapshots, no Sheet (#42)
+  requireTeacher_(code);
+  // Students / codes / tags typed in the Sheet: synced only after a hand edit (onEdit flag) or once an hour (#42)
+  var cc = CacheService.getScriptCache();
+  if (cc.get('sml_dirty_sync') || !cc.get('sml_synced')) {
+    _readMode = 'fresh'; _tables = {};
+    try { syncStudents_(); syncTaggedReview_(); } catch (e) { console.warn('teacherHome sync: ' + e); }
+    try { cc.put('sml_synced', '1', 3600); cc.remove('sml_dirty_sync'); } catch (e) {}
+    _readMode = 'cached';
+  }
+  var students = readTable_('Students').rows.filter(function (r) { return normCode_(r.student_code); });
+  var sets = readTable_('Sets').rows.filter(function (s) { return !isHidden_(s); });
+  var resp = readTable_('Responses').rows, rev = readTable_('Review').rows, asg = readTable_('Assignments').rows;
+  var by = {};
+  students.forEach(function (r) { by[normCode_(r.student_code)] = { code: normCode_(r.student_code), name: String(r.name || ''), active: isYes_(r.active), classes: String(r.classes || ''), sets: [], asks: 0, review: 0 }; });
+  sets.forEach(function (s) { var o = by[normCode_(s.student_code)]; if (o) o.sets.push(s); });
+  resp.forEach(function (r) { var o = by[normCode_(r.student_code)]; if (o && r.asked && String(r.ask_status) === 'open') o.asks++; });
+  rev.forEach(function (r) { var o = by[normCode_(r.student_code)]; if (o && String(r.status) === 'open') o.review++; });
+  var modL = modLatest_();                                           // #101 latest real-test module range per student
+  var stOut = Object.keys(by).map(function (k) {
+    var o = by[k], ms = lastActivity_(o.sets);
+    return { code: o.code, name: o.name, active: o.active, classes: o.classes, last: ms ? dateStr_(new Date(ms)) : '', last_ms: ms, asks: o.asks, review: o.review,
+             n_sets: o.sets.filter(isFinished_).length, mod: modL[o.code] || null };
+  }).sort(function (a, b) { return (b.active - a.active) || a.name.localeCompare(b.name); });
+  var classes = readTable_('Classes').rows.filter(function (c) { return c.class_id; }).map(function (c) {
+    var mem = codesOf_(c.student_codes).filter(function (x) { return by[x]; });
+    var last = 0, asks = 0;
+    mem.forEach(function (x) { last = Math.max(last, lastActivity_(by[x].sets)); asks += by[x].asks; });
+    var open = asg.filter(function (a) { return String(a.status) === 'published' && targetMembers_(a).some(function (x) { return mem.indexOf(x) >= 0; }); }).filter(function (a) {
+      return mem.some(function (x) { return !by[x].sets.some(function (s) { return String(s.assignment_id) === String(a.assignment_id) && isFinished_(s); }); });
+    }).length;
+    return { class_id: String(c.class_id), name: String(c.name || c.class_id), active: c.active === '' || isYes_(c.active), members: mem.map(function (x) { return { code: x, name: by[x].name }; }),
+             last: last ? dateStr_(new Date(last)) : '', asks: asks, open_assignments: open };
+  });
+  var openAsks = resp.filter(function (r) { return r.asked && String(r.ask_status) === 'open'; }).length;
+  var S = getSettings_();
+  return { ok: true, classes: classes, students: stOut, open_asks: openAsks,
+           mistake_types: String(S.mistake_types).split(/\s*;\s*/).filter(String), mistake_placeholder: S.mistake_placeholder };
+}
+
+/* ============================== class screen: what to go over · grid ============================== */
+function targetMembers_(a) {
+  if (String(a.target_type) === 'student') return [normCode_(a.target_id)];
+  var c = readTable_('Classes').rows.filter(function (x) { return String(x.class_id) === String(a.target_id); })[0];
+  return c ? codesOf_(c.student_codes) : [];
+}
+/** target: 'all' | 'C-001' (class) | 'st:CODE' (one student) → {title, members: [codes]} */
+function resolveTarget_(target) {
+  target = String(target || 'all');
+  var studs = readTable_('Students').rows.filter(function (r) { return normCode_(r.student_code); });
+  if (target.indexOf('st:') === 0) {
+    var s = findStudent_(target.slice(3)); if (!s) throw new Error('FORM: Student not found.');
+    return { kind: 'student', id: normCode_(s.student_code), title: String(s.name || s.student_code), members: [normCode_(s.student_code)] };
+  }
+  if (target === 'all') return { kind: 'all', id: 'all', title: 'All students', members: studs.filter(function (r) { return isYes_(r.active); }).map(function (r) { return normCode_(r.student_code); }) };
+  var c = readTable_('Classes').rows.filter(function (x) { return String(x.class_id) === target; })[0];
+  if (!c) throw new Error('FORM: Class not found.');
+  return { kind: 'class', id: target, title: String(c.name || target), members: codesOf_(c.student_codes) };
+}
+
+/** The order rule of "What to go over" (spec §9) — the ONE place to change it.
+ *  1 most students wrong on try 1 (one student: still wrong after fixes before fixed later) → open asks → extra tries → slow;
+ *  2 right on try 1 but asked; 3 right but slow; 4 right, fast, nobody asked (folded). */
+function priorityOrder_(rows, single) {
+  rows.forEach(function (r) { r.group = r.wrong1 > 0 ? 1 : r.asks > 0 ? 2 : r.slow_right > 0 ? 3 : 4; });
+  return rows.sort(function (a, b) {
+    return a.group - b.group || b.wrong1 - a.wrong1 || (single ? b.still - a.still : 0) || b.asks - a.asks ||
+           b.extra - a.extra || b.slow - a.slow || String(a.code).localeCompare(String(b.code), undefined, { numeric: true });
+  });
+}
+
+/** fresh = the Refresh button (#97): read the Sheet itself for this call instead of the snapshots. */
+function classView(code, target, scope, fresh) {
+  if (fresh) _forceFresh = true;
+  cachedReads_();                                                   // read-only: snapshots, no Sheet (#42)
+  requireTeacher_(code);
+  var T = resolveTarget_(target), mem = {}, names = {};
+  T.members.forEach(function (c) { mem[c] = 1; });
+  readTable_('Students').rows.forEach(function (r) { names[normCode_(r.student_code)] = String(r.name || r.student_code); });
+  var allSets = readTable_('Sets').rows.filter(function (s) { return mem[normCode_(s.student_code)] && isFinished_(s) && !isHidden_(s); });
+  var asg = readTable_('Assignments').rows.filter(function (a) { return a.assignment_id && String(a.status) !== 'deleted' && targetMembers_(a).some(function (c) { return mem[c]; }); });
+  // scopes to pick from: assignments of these students, recent sets, date ranges
+  scope = String(scope || (asg.length ? 'a:' + asg[asg.length - 1].assignment_id : 'd30'));
+  var now = Date.now(), inScope;
+  if (scope.indexOf('a:') === 0) inScope = function (s) { return String(s.assignment_id) === scope.slice(2); };
+  else if (scope.indexOf('s:') === 0) inScope = function (s) { return String(s.set_id) === scope.slice(2); };
+  else if (scope === 'all') inScope = function () { return true; };
+  else { var days = Number(scope.replace(/\D/g, '')) || 30; inScope = function (s) { return now - toMs_(s.submitted_at) <= days * 86400000; }; }
+  var sets = allSets.filter(inScope), setIds = {}, setOf = {};
+  sets.forEach(function (s) { setIds[String(s.set_id)] = 1; setOf[String(s.set_id)] = s; });
+  var resp = readTable_('Responses').rows.filter(function (r) { return setIds[String(r.set_id)]; });
+  var tries = {}; readTable_('Tries').rows.forEach(function (t) { if (setIds[String(t.set_id)]) (tries[t.set_id + '|' + t.qid] = tries[t.set_id + '|' + t.qid] || []).push(t); });
+  var qrow = {}; questionRows_().forEach(function (r) { qrow[String(r.qid)] = r; });
+  // latest answer of each student per question in scope
+  var latest = {};
+  resp.forEach(function (r) {
+    var k = String(r.qid) + '|' + normCode_(r.student_code), cur = latest[k];
+    if (!cur || toMs_(r.submitted_at) >= toMs_(cur.submitted_at)) latest[k] = r;
+  });
+  var byQ = {};
+  Object.keys(latest).forEach(function (k) {
+    var r = latest[k], q = String(r.qid), Q = qrow[q] || {};
+    var o = byQ[q] = byQ[q] || { qid: q, code: clean_(Q.code), cb_id: clean_(Q.cb_question_id), skill: clean_(r.skill) || clean_(Q.skill),
+      subskill: clean_(r.subskill) || clean_(Q.subskill), difficulty: String(Q.difficulty || r.difficulty || ''), type: String(Q.type || 'mcq'),
+      n: 0, wrong1: 0, still: 0, asks: 0, extra: 0, slow: 0, slow_right: 0, untagged: 0, students: [] };
+    var p = String(r.profile), right1 = Number(r.try1_correct) === 1, best = Number(r.best_correct) === 1, nt = Number(r.n_tries) || 0;
+    var ask = !!r.asked && String(r.ask_status) === 'open';
+    o.n++; if (!right1) o.wrong1++; if (!best) o.still++; if (ask) o.asks++; o.extra += Math.max(0, nt - 1);
+    if (p === 'SLOW_RIGHT' || p === 'SLOW_WRONG') o.slow++; if (p === 'SLOW_RIGHT') o.slow_right++;
+    if (!right1 && !String(r.mistake_type || '').trim()) o.untagged++;
+    var tl = (tries[r.set_id + '|' + r.qid] || []).sort(function (a, b) { return Number(a.try_no) - Number(b.try_no); });
+    o.students.push({ code: normCode_(r.student_code), name: names[normCode_(r.student_code)] || r.student_code, set_id: String(r.set_id),
+      set_title: setTitle_(setOf[String(r.set_id)] || {}), date: dateStr_(r.submitted_at),
+      tries: tl.map(function (t) { return { a: clean_(t.answer), ok: Number(t.correct) === 1 }; }),
+      try1: clean_(r.try1_answer), right1: right1, best: best, n_tries: nt, locked: isYes_(r.locked), time_s: Math.round(Number(r.time_try1_sec) || 0), away_s: Math.round(Number(r.away_sec) || 0),
+      norm_s: normSec_(r), total_s: Math.round(Number(r.time_total_sec) || 0),   // #66 S · 2:35 · normal 1:10
+      pace: Number(r.pace_ratio) || null, profile: p, badge: qBadge_(p), flags: String(r.flags || ''), asked: !!r.asked, ask_by: clean_(r.resolved_by), ask_note: clean_(r.ask_note),
+      ask_status: String(r.ask_status || ''), mistake_type: clean_(r.mistake_type), mistake_note: clean_(r.mistake_note) });
+  });
+  var rows = priorityOrder_(Object.keys(byQ).map(function (k) { return byQ[k]; }), T.members.length === 1);
+  rows.forEach(function (r) {
+    r.skill_name = skillName_(r.skill); r.subskill_name = subskillName_(r.subskill);
+    var bits = [r.wrong1 + ' of ' + r.n + ' wrong'];
+    if (r.asks) bits.push(r.asks + ' asked'); if (r.extra) bits.push(r.extra + r.n + ' tries'); if (r.slow) bits.push(r.slow + ' slow');
+    r.summary = bits.join(' · ');
+  });
+  // one student: weak sub-skills (red dot, ≥ progress_dot_min answers) above the list
+  var weak = [];
+  if (T.members.length === 1) {
+    var S = getSettings_(), acc = {};
+    firstTries_(T.members[0]).forEach(function (t) { var o = acc[t.subskill] = acc[t.subskill] || { n: 0, r: 0 }; o.n++; if (t.right) o.r++; });
+    Object.keys(acc).forEach(function (k) { var o = acc[k]; if (k && o.n >= S.progress_dot_min && o.r / o.n < S.dot_amber) weak.push({ subskill: k, name: subskillName_(k), right: o.r, n: o.n }); });
+    weak.sort(function (a, b) { return a.right / a.n - b.right / b.n; });
+  }
+  var scopes = [{ id: 'd7', label: 'Last 7 days' }, { id: 'd30', label: 'Last 30 days' }, { id: 'all', label: 'All time' }];
+  asg.slice().reverse().forEach(function (a) { scopes.push({ id: 'a:' + a.assignment_id, label: 'Assignment · ' + String(a.title) }); });
+  allSets.filter(function (s) { return String(s.kind) !== 'assignment'; }).sort(function (a, b) { return toMs_(b.submitted_at) - toMs_(a.submitted_at); }).slice(0, 15).forEach(function (s) {
+    scopes.push({ id: 's:' + s.set_id, label: (names[normCode_(s.student_code)] || '') + ' · ' + setTitle_(s) + ' · ' + dateStr_(s.submitted_at) });
+  });
+  var assignments = asg.map(function (a) { return assignmentInfo_(a, names); });
+  return { ok: true, target: { kind: T.kind, id: T.id, title: T.title }, members: T.members.map(function (c) { return { code: c, name: names[c] || c }; }),
+           scope: scope, scopes: scopes, rows: rows, weak: weak, assignments: assignments, n_sets: sets.length };
+}
+function assignmentInfo_(a, names) {
+  var mem = targetMembers_(a), sets = readTable_('Sets').rows.filter(function (s) { return String(s.assignment_id) === String(a.assignment_id); });
+  var pl = String(a.kind) === 'placement', md = String(a.kind) === MOD_KIND, mode = md ? modModeOf_(a) : '';
+  return { assignment_id: String(a.assignment_id), title: String(a.title), target_type: String(a.target_type), target_id: String(a.target_id),
+           kind: pl ? 'placement' : md ? MOD_KIND : 'questions', form: pl ? String(a.form || 'auto') : mode, mode_name: md ? MOD_NAMES_[mode] : '',
+           n: pl ? 0 : md ? (mode === 'FULL' ? 44 : 22) : setQids_(a).length, available_from: fmtDay_(a.available_from), due: fmtDay_(a.due), status: String(a.status),
+           students: mem.map(function (c) {
+             if (md) {                                                   // #101 done = the whole test is in (both modules of a full one)
+               var ms = sets.filter(function (x) { return normCode_(x.student_code) === c && String(x.status) !== 'abandoned'; }), fin = ms.filter(isFinished_);
+               var all = ms.length && fin.length === ms.length && (mode !== 'FULL' || fin.length >= 2), lastS = ms[ms.length - 1];
+               var rr = all ? modRecord_(lastS.set_id) : null;
+               return { code: c, name: (names || {})[c] || c, state: !ms.length ? 'not started' : all ? 'done' : 'in progress', n: ms.reduce(function (t, x) { return t + (Number(x.n) || 0); }, 0),
+                        first_try: all ? fin.reduce(function (t, x) { return t + (Number(x.first_try) || 0); }, 0) : null, best: null, set_id: lastS ? String(lastS.set_id) : '',
+                        range: rr && rr.score_lo !== '' ? rr.score_lo + '–' + rr.score_hi : '' };
+             }
+             var s = sets.filter(function (x) { return normCode_(x.student_code) === c; })[0];
+             return { code: c, name: (names || {})[c] || c, state: !s ? 'not started' : isFinished_(s) ? 'done' : 'in progress', n: s ? Number(s.n) || 0 : 0,
+                      first_try: s && isFinished_(s) ? Number(s.first_try) : null, best: s && isFinished_(s) ? Number(s.best_score) : null, set_id: s ? String(s.set_id) : '' };
+           }) };
+}
+function fmtDay_(v) {
+  if (!v) return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') return fmtDate_(v, 'yyyy-MM-dd');
+  return String(v).replace(/^'/, '').slice(0, 10);
+}
+
+/** The question as students saw it + the key (teacher only) + the CB rationale when there is one. */
+function questionPanel(code, qid) {
+  cachedReads_();                                                   // read-only: snapshots, no Sheet (#42)
+  requireTeacher_(code);
+  qid = String(qid || '').trim();
+  if (/^[EMH]\d+(B\d*)?$/i.test(qid)) {                            // a short code (E326) typed in the search box
+    var hit = questionRows_().filter(function (x) { return clean_(x.code).toUpperCase() === qid.toUpperCase(); })[0];
+    if (hit) qid = String(hit.qid);
+  }
+  var q = libQuestions_([qid])[0];
+  if (!q) throw new Error('FORM: Question not found in the library.');
+  q.part = 'P'; q.display_no = 1;
+  var o = clientQuestion_(q, true), r = questionRows_().filter(function (x) { return String(x.qid) === String(qid); })[0] || {};
+  o.code = clean_(r.code) || q.code || '';
+  // #50: no key and no CB explanation here any more — "Show answer" (teacherKey) fetches them
+  o.cb_id = clean_(r.cb_question_id) || ((q.source || {}).cb_question_id || '');
+  o.skill_name = skillName_(clean_(r.skill)); o.subskill_name = subskillName_(clean_(r.subskill)); o.difficulty = String(r.difficulty || ''); o.level = r.level || '';
+  var norm = timeNormFor_(q.type, r.difficulty); o.norm_sec = norm ? norm.target : null;
+  return { ok: true, q: o };
+}
+
+/* ============================== tags · asks ============================== */
+function responseRow_(setId, qid) {
+  var f = function (sid) { return readTable_('Responses').rows.filter(function (r) { return String(r.set_id) === String(sid) && String(r.qid) === String(qid); })[0]; };
+  return f(setId) || (modRecord_(setId) ? f(modSetOf_(setId, qid)) : undefined);       // #104 a module test: the other module's answer
+}
+/** Mistake type of one answer (Minh's 7, Settings.mistake_types). A real mistake also puts the item in the student's Review. */
+function tagMistake(code, setId, qid, type, note, undoAsk) {
+  requireTeacher_(code);
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try { return tagOne_(setId, qid, type, note, undoAsk); } finally { lock.releaseLock(); }
+}
+/** #68 "Set all to …" in the class go-over: one call, one lock, each student's open Ask resolved too. */
+function tagMistakes(code, list, type) {
+  requireTeacher_(code);
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try { return { ok: true, items: (list || []).slice(0, 60).map(function (x) { return tagOne_(x.set_id, x.qid, type, x.note, false); }) }; } finally { lock.releaseLock(); }
+}
+/** A mistake type for one answer. #68: any type (incl. "Not A Mistake") on an answer with an OPEN Ask resolves it
+ *  (resolved_by = tag) — the teacher has gone over it. undoAsk (the Undo of that tag) opens it again. */
+function tagOne_(setId, qid, type, note, undoAsk) {
+  var S = getSettings_(), types = String(S.mistake_types).split(/\s*;\s*/).filter(String);
+  type = String(type || '').trim();
+  if (type && types.indexOf(type) < 0) throw new Error('FORM: Unknown mistake type.');
+  var r = responseRow_(setId, qid); if (!r) throw new Error('FORM: Answer not found.');
+  var f = { mistake_type: type, mistake_note: txt_(String(note === undefined || note === null ? r.mistake_note || '' : note).slice(0, 300)), tagged_at: type ? nowIso_() : '', tagged_in: type ? 'app' : '' };
+  var resolved = false, reopened = false;
+  if (type && isYes_(r.asked) && String(r.ask_status) === 'open') { f.ask_status = 'resolved'; f.resolved_at = nowIso_(); f.resolved_by = 'tag'; resolved = true; }
+  if (undoAsk && String(r.resolved_by) === 'tag' && String(r.ask_status) === 'resolved') { f.ask_status = 'open'; f.resolved_at = ''; f.resolved_by = ''; reopened = true; }
+  updateRow_('Responses', r._row, f);
+  var added = false;
+  if (type && type !== 'Not A Mistake') added = tagToReview_(normCode_(r.student_code), String(qid), String(setId));
+  return { ok: true, review_added: added, ask_resolved: resolved, ask_reopened: reopened, set_id: String(setId), qid: String(qid) };
+}
+function tagToReview_(sc, qid, setId) {
+  var open = readTable_('Review').rows.some(function (x) { return normCode_(x.student_code) === sc && String(x.qid) === qid && String(x.status) === 'open'; });
+  if (open) return false;
+  appendObjects_('Review', [{ student_code: sc, qid: qid, reason: 'tagged', from_set: setId, added_at: nowIso_(), status: 'open', n_served: 0 }]);
+  return true;
+}
+/** Tags typed in the Sheet (tagged_in empty): each one is handled once — Review row if it is a real mistake, then
+ *  tagged_in = sheet. Tags made on the teacher page are handled at once by tagMistake. */
+function syncTaggedReview_() {
+  var n = 0, now = nowIso_();
+  readTable_('Responses').rows.forEach(function (r) {
+    var t = clean_(r.mistake_type);
+    if (!t || String(r.tagged_in || '').trim()) return;
+    if (t !== 'Not A Mistake' && tagToReview_(normCode_(r.student_code), String(r.qid), String(r.set_id))) n++;
+    updateRow_('Responses', r._row, { tagged_in: 'sheet', tagged_at: r.tagged_at || now });
+  });
+  return 'tags from the Sheet → Review: ' + n;
+}
+/** Mistake-type dropdown on Responses.mistake_type (rebuilt from Settings on every update). */
+function ensureMistakeDropdown_() {
+  var sh = sheet_('Responses'), col = headers_('Responses').indexOf('mistake_type') + 1;
+  if (col < 1) return 'dropdown: no column';
+  var types = String(getSettings_().mistake_types).split(/\s*;\s*/).filter(String);
+  var rule = SpreadsheetApp.newDataValidation().requireValueInList(types, true).setAllowInvalid(true).build();
+  sh.getRange(2, col, Math.max(1, sh.getMaxRows() - 1), 1).setDataValidation(rule);
+  return 'dropdown: ' + types.length + ' mistake types';
+}
+function resolveAsk(code, setId, qid, reopen) {
+  requireTeacher_(code);
+  var r = responseRow_(setId, qid); if (!r) throw new Error('FORM: Answer not found.');
+  updateRow_('Responses', r._row, reopen ? { ask_status: 'open', resolved_at: '', resolved_by: '' } : { ask_status: 'resolved', resolved_at: nowIso_(), resolved_by: 'teacher' });
+  return { ok: true };
+}
+function asksInbox(code) {
+  cachedReads_();                                                   // read-only: snapshots, no Sheet (#42)
+  requireTeacher_(code);
+  var names = {}; readTable_('Students').rows.forEach(function (r) { names[normCode_(r.student_code)] = String(r.name || r.student_code); });
+  var sets = {}; readTable_('Sets').rows.forEach(function (s) { sets[String(s.set_id)] = s; });
+  var qc = {}; questionRows_().forEach(function (r) { qc[String(r.qid)] = clean_(r.code); });
+  var out = readTable_('Responses').rows.filter(function (r) { return r.asked && String(r.ask_status) === 'open'; }).map(function (r) {
+    return { set_id: String(r.set_id), qid: String(r.qid), code: qc[String(r.qid)] || '', student: names[normCode_(r.student_code)] || r.student_code, student_code: normCode_(r.student_code),
+             note: clean_(r.ask_note), date: dateStr_(r.ask_at || r.submitted_at), ms: toMs_(r.ask_at || r.submitted_at), set_title: setTitle_(sets[String(r.set_id)] || {}),
+             right1: Number(r.try1_correct) === 1, best: Number(r.best_correct) === 1 };
+  }).sort(function (a, b) { return b.ms - a.ms; });
+  return { ok: true, asks: out };
+}
+
+/* ============================== student profile ============================== */
+function studentProfile(code, sc, fresh) {
+  if (fresh) _forceFresh = true;                                    // the Refresh button (#97)
+  cachedReads_();                                                   // read-only: snapshots, no Sheet (#42)
+  requireTeacher_(code);
+  var st = findStudent_(sc); if (!st) throw new Error('FORM: Student not found.');
+  var c = normCode_(st.student_code), S = getSettings_(), tries = firstTries_(c);
+  var lv = {}; readTable_('Levels').rows.forEach(function (r) { if (normCode_(r.student_code) === c) lv[clean_(r.skill)] = r; });
+  var acc = {};
+  tries.forEach(function (t) { [t.skill, 's:' + t.subskill].forEach(function (k) { var o = acc[k] = acc[k] || { n: 0, r: 0 }; o.n++; if (t.right) o.r++; }); });
+  var dot = function (o) { if (!o || o.n < S.progress_dot_min) return 'n'; var p = o.r / o.n; return p >= S.dot_green ? 'g' : p >= S.dot_amber ? 'y' : 'r'; };
+  var skills = [], seen = {};
+  SKILLS_.forEach(function (r) {
+    if (!seen[r.skill]) {
+      seen[r.skill] = { skill: r.skill, name: r.skill_name, domain: r.domain_name, level: lv[r.skill] ? String(lv[r.skill].level) : '',
+                        recent: lv[r.skill] && lv[r.skill].recent_pct !== '' ? Number(lv[r.skill].recent_pct) : null,
+                        streak: lv[r.skill] ? Number(lv[r.skill].good_streak) || 0 : 0, history: lv[r.skill] ? String(lv[r.skill].history || '') : '',
+                        n: (acc[r.skill] || {}).n || 0, right: (acc[r.skill] || {}).r || 0, dot: dot(acc[r.skill]), subs: [] };
+      skills.push(seen[r.skill]);
+    }
+    var o = acc['s:' + r.subskill];
+    if (r.subskill && o) seen[r.skill].subs.push({ code: r.subskill, name: r.subskill_name, n: o.n, right: o.r, dot: dot(o) });
+  });
+  var resp = readTable_('Responses').rows.filter(function (r) { return normCode_(r.student_code) === c; });
+  var prof = {}, types = {}, asks = 0, time = 0, nTries = 0;
+  resp.forEach(function (r) {
+    prof[String(r.profile)] = (prof[String(r.profile)] || 0) + 1;
+    var t = clean_(r.mistake_type); if (t) types[t] = (types[t] || 0) + 1;
+    if (r.asked && String(r.ask_status) === 'open') asks++;
+    time += Number(r.time_total_sec) || 0; nTries += Number(r.n_tries) || 0;
+  });
+  var fixLeft = {}; resp.forEach(function (r) { if (Number(r.best_correct) !== 1 && !isYes_(r.locked)) fixLeft[r.set_id] = (fixLeft[r.set_id] || 0) + 1; });
+  var rsOf = {};                                                     // #66 the R / S questions of each set, with their time
+  resp.forEach(function (r) { var b = qBadge_(String(r.profile)); if (b) (rsOf[String(r.set_id)] = rsOf[String(r.set_id)] || []).push({ no: Number(r.order) || 0, qid: String(r.qid), b: b, t: Math.round(Number(r.time_try1_sec) || 0), nm: normSec_(r) }); });
+  var bySet = {}; resp.forEach(function (r) { (bySet[String(r.set_id)] = bySet[String(r.set_id)] || []).push(r); });
+  var placements = []; try { placements = plSummaries_(c); } catch (e) {}
+  var sets = readTable_('Sets').rows.filter(function (s) { return normCode_(s.student_code) === c && !isHidden_(s); })
+    .sort(function (a, b) { return (toMs_(b.submitted_at) || toMs_(b.created_at)) - (toMs_(a.submitted_at) || toMs_(a.created_at)); }).map(function (s) {
+      return { set_id: String(s.set_id), title: setTitle_(s), kind: String(s.kind), date: dateStr_(s.submitted_at || s.created_at), done: isFinished_(s),
+               n: Number(s.n) || 0, first_try: isFinished_(s) ? Number(s.first_try) || 0 : null, best: isFinished_(s) ? Number(s.best_score) || 0 : null,
+               time_min: bySet[String(s.set_id)] ? setTimeOf_(bySet[String(s.set_id)]).min : 0, capped: bySet[String(s.set_id)] ? setTimeOf_(bySet[String(s.set_id)]).capped : 0, fix_left: String(s.kind) === 'placement' ? 0 : fixLeft[String(s.set_id)] || 0, progress: String(s.progress || ''),
+               answer_min: s.time_answer_min === '' || s.time_answer_min === undefined ? null : Number(s.time_answer_min) || 0,
+               away_n: Number(s.away_n) || 0, away_sec: Number(s.away_sec) || 0, away_at: String(s.away_at || ''),
+               rs: (rsOf[String(s.set_id)] || []).sort(function (a, b) { return a.no - b.no; }), form: String(s.kind) === 'placement' ? String(s.level_at_start || '') : '' };
+    });
+  var review = readTable_('Review').rows.filter(function (r) { return normCode_(r.student_code) === c && String(r.status) === 'open'; }).length;
+  var my = mySkillsOf_(c, true);
+  return { ok: true, student: { code: c, name: String(st.name || ''), active: isYes_(st.active), classes: String(st.classes || '') },
+           skills: skills, sets: sets, placements: placements, profiles: prof, mistakes: types, asks_open: asks, review_open: review,
+           my: my, recommend: recommendFor_(my, review),
+           totals: { answers: resp.length, first_try_right: resp.filter(function (r) { return Number(r.try1_correct) === 1; }).length,
+                     best_right: resp.filter(function (r) { return Number(r.best_correct) === 1; }).length, tries: nTries, time_min: setTimeOf_(resp).min } };
+}
+
+/** #43 Difficulties to assign for a student's level in a skill (Minh 14 Nov): Weak (Easy level) → Easy + Medium · Medium →
+ *  Medium + Hard · Strong → Hard · no level yet → Easy + Medium. */
+function diffsForLevel_(level) { return { E: 'E,M', M: 'M,H', H: 'H' }[String(level || '').toUpperCase()] || 'E,M'; }
+/** Recommended assignment: the 3 weakest skills with answers or a level (Easy level first, then Medium; lower first-try
+ *  share first; never Strong) × 4 questions at the right difficulties, + the student's Review questions. */
+function recommendFor_(my, reviewOpen) {
+  // #71 the same skills, in the same order, as the student's "Focus now" (no contradiction); difficulties from the one Focus shows
+  var byK = {}; (my.skills || []).forEach(function (k) { byK[k.k] = k; });
+  var cand = (my.focus || []).map(function (k) { return byK[k]; }).filter(Boolean);
+  return { topics: cand.map(function (k) { return { code: k.k, name: k.name, level: String(k.level || ''), n: 4, diffs: diffsForLevel_(k.fd || k.level) }; }), review: reviewOpen || 0 };
+}
+
+/* ============================== assignments (§7) ============================== */
+/** Tree domain → skill → sub-skill with live items per E/M/H, and how many are fresh for every target student. */
+function assignmentTree(code, target) {
+  cachedReads_();                                                   // read-only: snapshots, no Sheet (#42)
+  requireTeacher_(code);
+  var mem = target ? resolveTarget_(target).members : [], done = {};
+  if (mem.length) readTable_('Responses').rows.forEach(function (r) { if (mem.indexOf(normCode_(r.student_code)) >= 0) done[String(r.qid)] = 1; });
+  var cnt = {};
+  livePool_().forEach(function (r) {
+    var d = String(r.difficulty).toUpperCase();
+    [clean_(r.skill), clean_(r.subskill)].forEach(function (k) {
+      var o = cnt[k] = cnt[k] || { E: 0, M: 0, H: 0, fE: 0, fM: 0, fH: 0 };
+      if (o[d] !== undefined) { o[d]++; if (!done[String(r.qid)]) o['f' + d]++; }
+    });
+  });
+  var doms = [], di = {};
+  SKILLS_.forEach(function (r) {
+    if (!di[r.domain]) { di[r.domain] = { domain: r.domain, name: r.domain_name, skills: [], _s: {} }; doms.push(di[r.domain]); }
+    var d = di[r.domain];
+    if (!d._s[r.skill]) { var pf = skillProfile_(r.skill); d._s[r.skill] = { code: r.skill, name: r.skill_name, count: cnt[r.skill] || null, subs: [], profile: pf.label, allowed: ['E', 'M', 'H'].filter(function (x) { return pf.allowed[x]; }).join(',') }; d.skills.push(d._s[r.skill]); }
+    if (r.subskill) d._s[r.skill].subs.push({ code: r.subskill, name: r.subskill_name, count: cnt[r.subskill] || null });
+  });
+  doms.forEach(function (d) { delete d._s; });
+  return { ok: true, domains: doms, members: mem.length };
+}
+/** Spread n over the ticked difficulties as evenly as possible (n=4, M+H → 2 M + 2 H). */
+function spread_(n, diffs) {
+  var out = {}; diffs.forEach(function (d, i) { out[d] = Math.floor(n / diffs.length) + (i < n % diffs.length ? 1 : 0); }); return out;
+}
+/** Picks the questions of an assignment (§7.4). spec = {target, topics: [{code, n, diffs: 'E,M'}]} → per topic: picked + queue (for Swap). */
+function pickAssignment(code, spec) {
+  cachedReads_();                                                   // read-only: snapshots, no Sheet (#42)
+  requireTeacher_(code);
+  var T = resolveTarget_(spec && spec.target), mem = T.members, names = {};
+  readTable_('Students').rows.forEach(function (r) { names[normCode_(r.student_code)] = String(r.name || r.student_code).split(/\s+/)[0]; });
+  var last = {};                                                   // qid → {ms, who: [names]}
+  readTable_('Responses').rows.forEach(function (r) {
+    var c = normCode_(r.student_code); if (mem.indexOf(c) < 0) return;
+    var o = last[String(r.qid)] = last[String(r.qid)] || { ms: 0, who: [] };
+    o.ms = Math.max(o.ms, toMs_(r.submitted_at)); if (o.who.indexOf(names[c]) < 0) o.who.push(names[c]);
+  });
+  var pool = livePool_(), used = {}, twins = {}, S = getSettings_(), seed = seedOf_(JSON.stringify(spec) + Date.now());
+  var topics = (spec.topics || []).map(function (t) {
+    var tc = String(t.code || ''), n = Math.max(1, Math.min(40, Number(t.n) || 1));
+    var diffs = String(t.diffs || '').split(/[,\s]+/).map(function (d) { return d.toUpperCase(); }).filter(function (d) { return /^[EMH]$/.test(d); });
+    if (!diffs.length) throw new Error('FORM: Tick Easy, Medium or Hard for ' + tc + '.');
+    var isSub = /\.\d+$/.test(tc), skill = isSub ? (SKILLS_.filter(function (x) { return x.subskill === tc; })[0] || {}).skill : tc;
+    var inTopic = pool.filter(function (r) { return isSub ? clean_(r.subskill) === tc : clean_(r.skill) === tc; });
+    // Teacher's ticks = real difficulties: NO Hard stand-ins here (bug #28: Q.G with E+M ticked got Hard items).
+    // Skill_Profile: a difficulty the skill does not have on the SAT counts as 0 items (Circles: no Easy) → neighbour fill + note
+    var prof = skillProfile_(skill);
+    var match = function (r, d) { return String(r.difficulty).toUpperCase() === d && !!prof.allowed[d]; };
+    var rnd = {}; shuffle_(inTopic.slice(), seed).forEach(function (r, i) { rnd[String(r.qid)] = i; });
+    var lvPref = 0;                                                  // filling for a missing Easy: Medium level 1 first (+1); for Hard: hardest first (−1)
+    var queueFor = function (d) {
+      return inTopic.filter(function (r) { return match(r, d); }).sort(function (a, b) {
+        var la = last[String(a.qid)], lb = last[String(b.qid)];
+        return (la ? 1 : 0) - (lb ? 1 : 0) || lvPref * ((Number(a.level) || 1) - (Number(b.level) || 1)) || (la ? la.ms : 0) - (lb ? lb.ms : 0) || rnd[String(a.qid)] - rnd[String(b.qid)];
+      });
+    };
+    var picked = [], extra = {}, subsUsed = {};                       // sub-skills already in this topic (spread across difficulties too)
+    /** take up to k items of difficulty d (one per sub-skill first, then the rest in queue order) */
+    var takeFrom = function (d, k) {
+      var q = queueFor(d), take = [];
+      [true, false].forEach(function (firstPass) {
+        q.forEach(function (r) {
+          if (take.length >= k) return;
+          var id = String(r.qid), tw = String(r.twin_group || ''), sb = clean_(r.subskill);
+          if (used[id] || (tw && twins[tw]) || (firstPass && subsUsed[sb])) return;
+          used[id] = 1; if (tw) twins[tw] = 1; subsUsed[sb] = 1; take.push(r);
+        });
+      });
+      take.forEach(function (r) { picked.push(r); });
+      return take.length;
+    };
+    var want = spread_(n, diffs), got = {}, notes = [];
+    diffs.forEach(function (d) { got[d] = takeFrom(d, want[d]); });
+    // a ticked difficulty with too few items: fill from the neighbouring difficulty — and say so in the builder
+    var NB = { E: ['M', 'H'], M: ['E', 'H'], H: ['M', 'E'] }, NAME = { E: 'Easy', M: 'Medium', H: 'Hard' };
+    diffs.forEach(function (d) {
+      var miss = want[d] - got[d]; if (miss <= 0) return;
+      var adds = [], none = !prof.allowed[d];
+      lvPref = d === 'E' ? 1 : d === 'H' ? -1 : 0;
+      NB[d].forEach(function (nd) { if (miss <= 0) return; var k = takeFrom(nd, miss); if (k) { adds.push(k + ' ' + NAME[nd]); extra[nd] = (extra[nd] || 0) + k; miss -= k; } });
+      lvPref = 0;
+      notes.push((none ? skillName_(skill) + ' has no ' + NAME[d] + ' on the SAT' : 'only ' + got[d] + ' ' + NAME[d] + ' available') +
+                 (adds.length ? ' — ' + adds.join(' + ') + ' added' + (none && d === 'E' ? ' (easiest first)' : none && d === 'H' ? ' (hardest first)' : '') : '') + (miss > 0 ? ' — ' + miss + ' missing' : ''));
+    });
+    var queue = [];
+    diffs.concat(['E', 'M', 'H'].filter(function (d) { return diffs.indexOf(d) < 0; })).forEach(function (d) { queueFor(d).forEach(function (r) { if (!used[String(r.qid)]) queue.push(r); }); });
+    var avail = inTopic.filter(function (r) { return diffs.some(function (d) { return match(r, d); }); }).length;
+    var item = function (r) {
+      var l = last[String(r.qid)];
+      return { qid: String(r.qid), code: clean_(r.code), difficulty: String(r.difficulty), level: r.level || '', subskill: clean_(r.subskill),
+               subskill_name: subskillName_(clean_(r.subskill)), status: l ? 'done by ' + l.who.join(', ') : 'new for all' };
+    };
+    return { code: tc, name: isSub ? subskillName_(tc) : skillName_(tc), n: n, diffs: diffs.join(','), available: avail,
+             short: picked.length < n ? 'only ' + picked.length + ' available' : '', notes: notes,
+             picked: picked.map(function (r) { var o = item(r); o.extra = diffs.indexOf(String(r.difficulty).toUpperCase()) < 0; return o; }),
+             queue: queue.slice(0, 30).map(item) };
+  });
+  // #43: + the questions of the student's Review list (one student only), not already picked above
+  if (spec.review && T.kind === 'student' && mem.length === 1) {
+    var byQ = {}; questionRows_().forEach(function (r) { byQ[String(r.qid)] = r; });
+    var live = {}; pool.forEach(function (r) { live[String(r.qid)] = 1; });
+    var rv = readTable_('Review').rows.filter(function (r) { return normCode_(r.student_code) === mem[0] && String(r.status) === 'open' && live[String(r.qid)] && !used[String(r.qid)]; }).slice(0, 10);
+    if (rv.length) topics.push({ code: 'REVIEW', name: 'From their Review list', n: rv.length, diffs: '', available: rv.length, short: '', notes: [], review: true, queue: [],
+      picked: rv.map(function (x) { var r = byQ[String(x.qid)] || {}; used[String(x.qid)] = 1;
+        return { qid: String(x.qid), code: clean_(r.code), difficulty: String(r.difficulty || ''), level: r.level || '', subskill: clean_(r.subskill), subskill_name: subskillName_(clean_(r.subskill)), status: 'in their Review list' }; }) });
+  }
+  return { ok: true, target: { kind: T.kind, id: T.id, title: T.title, members: mem.length }, topics: topics };
+}
+/** Publish (or save as draft) an assignment with the frozen list of questions. */
+function publishAssignment(code, a) {
+  requireTeacher_(code);
+  var T = resolveTarget_(a && a.target);
+  if (T.kind === 'all') throw new Error('FORM: Choose a student or a class.');
+  var pl = String(a.kind || '') === 'placement', md = String(a.kind || '') === MOD_KIND, qids = [], form = '';
+  if (md) {                                                          // #101 real-test module: built per student when they start
+    form = String(a.form || 'M1').toUpperCase(); if (!MOD_NAMES_[form]) throw new Error('FORM: Choose Module 1, Module 2 easier, Module 2 harder or the full test.');
+  } else if (pl) {
+    form = String(a.form || 'auto').toUpperCase(); if (['A', 'B', 'AUTO'].indexOf(form) < 0) form = 'AUTO';
+    var fm = plForms_(), slots = Object.keys(fm).filter(function (k) { return form === 'AUTO' || k.indexOf(form + '|') === 0; });
+    if (!slots.length) throw new Error('FORM: The placement forms are not in the Sheet yet (tab Placement_Forms).');
+  } else {
+    if (a.auto_pick && !(a.qids || []).length) {                    // #43 Recommended assignment: pick + publish in one click
+      var pk = pickAssignment(code, { target: a.target, topics: (a.topics || []).filter(function (t) { return t.code !== 'REVIEW'; }), review: !!a.review });
+      a.qids = []; pk.topics.forEach(function (t) { t.picked.forEach(function (x) { a.qids.push(x.qid); }); });
+      _readMode = 'fresh'; _tables = {};                             // the write below reads the Sheet itself
+    }
+    var known = {}; livePool_().forEach(function (r) { known[String(r.qid)] = 1; });
+    qids = (a.qids || []).map(String).filter(function (q, i, arr) { return known[q] && arr.indexOf(q) === i; });
+    if (!qids.length) throw new Error('FORM: Pick the questions first.');
+  }
+  var title = String(a.title || '').trim().slice(0, 80) || (pl ? PL_TITLE : md ? 'Real-test module' : 'Homework – ' + fmtDate_(new Date(), 'd MMM'));
+  var from = /^\d{4}-\d{2}-\d{2}$/.test(String(a.available_from || '')) ? a.available_from : fmtDate_(new Date(), 'yyyy-MM-dd');
+  var due = /^\d{4}-\d{2}-\d{2}$/.test(String(a.due || '')) ? a.due : '';
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var day = fmtDate_(new Date(), 'yyyyMMdd'), n = readTable_('Assignments').rows.filter(function (x) { return String(x.assignment_id).indexOf('A-' + day + '-') === 0; }).length;
+    var id = 'A-' + day + '-' + (n + 1);
+    appendObjects_('Assignments', [{ assignment_id: id, title: title, target_type: T.kind, target_id: T.id, topics: pl || md ? '' : txt_(JSON.stringify(a.topics || [])),
+      qids: qids.join(','), available_from: txt_(from), due: txt_(due), status: a.draft ? 'draft' : 'published', created_at: nowIso_(), created_in: 'app',
+      kind: pl ? 'placement' : md ? MOD_KIND : '', form: md ? form : pl ? form.toLowerCase() === 'auto' ? 'auto' : form : '' }]);
+    return { ok: true, assignment_id: id, n: qids.length, placement: pl, module: md };
+  } finally { lock.releaseLock(); }
+}
+function closeAssignment(code, aid, reopen) {
+  requireTeacher_(code);
+  var r = readTable_('Assignments').rows.filter(function (x) { return String(x.assignment_id) === String(aid); })[0];
+  if (!r) throw new Error('FORM: Assignment not found.');
+  updateRow_('Assignments', r._row, { status: reopen ? 'published' : 'closed' });
+  return { ok: true };
+}
+
+/** #71 one-time (and safe to repeat): Asks tagged with a mistake BEFORE #68 B still open → resolved (resolved_by
+ *  "tag-backfill"). Reads every Responses row, writes only those three cells of the rows that need it. */
+function backfillAskTags_() {
+  var n = 0, at = nowIso_(), sh = sheet_('Responses'), hd = headers_('Responses');
+  readTable_('Responses').rows.forEach(function (r) {
+    if (isYes_(r.asked) && String(r.ask_status) === 'open' && clean_(r.mistake_type)) {
+      var f = { ask_status: 'resolved', resolved_by: 'tag-backfill', resolved_at: at };
+      Object.keys(f).forEach(function (h) { var c = hd.indexOf(h); if (c >= 0) sh.getRange(r._row, c + 1).setValue(f[h]); });
+      n++;
+    }
+  });
+  if (n) tabChanged_('Responses');
+  return 'asks backfill: ' + n + ' resolved';
+}
+
+/* ---------------- #71 the Assignment tab: Current (published) · Past (closed / cancelled); Edit · Cancel · Delete ---------------- */
+function asgSets_(aid) { return readTable_('Sets').rows.filter(function (s) { return String(s.assignment_id) === String(aid) && String(s.status) !== 'abandoned'; }); }
+function asgRow_(aid) {
+  var r = readTable_('Assignments').rows.filter(function (x) { return String(x.assignment_id) === String(aid); })[0];
+  if (!r || String(r.status) === 'deleted') throw new Error('FORM: Assignment not found.');
+  return r;
+}
+/** Every assignment that is not deleted: title, who (class / student name), from–due, done x / y, started, status. */
+function teacherAssignments(code) {
+  requireTeacher_(code); cachedReads_();
+  var names = {}; readTable_('Students').rows.forEach(function (r) { names[normCode_(r.student_code)] = String(r.name || r.student_code); });
+  var cls = {}; readTable_('Classes').rows.forEach(function (c) { cls[String(c.class_id)] = String(c.name || c.class_id); });
+  var list = readTable_('Assignments').rows.filter(function (a) { return a.assignment_id && String(a.status) !== 'deleted'; }).map(function (a) {
+    var info = assignmentInfo_(a, names), started = info.students.filter(function (x) { return x.state !== 'not started'; }).length;
+    var who = String(a.target_type) === 'student' ? names[normCode_(a.target_id)] || String(a.target_id) : cls[String(a.target_id)] || String(a.target_id);
+    var tp = []; try { tp = JSON.parse(String(a.topics || '[]')) || []; } catch (e) {}
+    return { assignment_id: info.assignment_id, title: info.title, kind: info.kind, n: info.n, from: info.available_from, due: info.due, status: info.status,
+             target: String(a.target_type) === 'student' ? 'st:' + normCode_(a.target_id) : String(a.target_id), who: who,
+             done: info.students.filter(function (x) { return x.state === 'done'; }).length, total: info.students.length, started: started, topics: tp,
+             created: dateStr_(a.created_at) };
+  });
+  return { ok: true, current: list.filter(function (a) { return a.status === 'published' || a.status === 'draft'; }).reverse(),
+           past: list.filter(function (a) { return a.status === 'closed' || a.status === 'cancelled'; }).reverse() };
+}
+/** Edit: title, due and students always; the questions only while nobody has started it. */
+function editAssignment(code, aid, f) {
+  requireTeacher_(code); f = f || {};
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var a = asgRow_(aid), started = asgSets_(aid).length, up = {};
+    if (f.title !== undefined) { var t = String(f.title || '').trim().slice(0, 80); if (!t) throw new Error('FORM: The title is empty.'); up.title = t; }
+    if (f.due !== undefined) { if (f.due && !/^\d{4}-\d{2}-\d{2}$/.test(String(f.due))) throw new Error('FORM: Due must be a date.'); up.due = txt_(f.due || ''); }
+    if (f.target !== undefined && f.target !== '') {
+      var T = resolveTarget_(f.target); if (T.kind === 'all') throw new Error('FORM: Choose a student or a class.');
+      up.target_type = T.kind; up.target_id = T.id;
+    }
+    if (f.qids !== undefined) {
+      if (started) throw new Error('FORM: Someone has started it: the questions can no longer change.');
+      if (String(a.kind) === 'placement') throw new Error('FORM: A placement test has no question list.');
+      if (String(a.kind) === MOD_KIND) throw new Error('FORM: A real-test module is built for each student when they start it.');
+      var q = (f.qids || []).map(String).filter(String); if (!q.length) throw new Error('FORM: No questions.');
+      up.qids = q.join(','); if (f.topics) up.topics = txt_(JSON.stringify(f.topics));
+    }
+    if (Object.keys(up).length) updateRow_('Assignments', a._row, up);
+    return { ok: true, started: started };
+  } finally { lock.releaseLock(); }
+}
+/** Cancel: hidden for the students at once (home card, start); its sets and history stay. undo → published again. */
+function cancelAssignment(code, aid, undo) {
+  requireTeacher_(code);
+  var a = asgRow_(aid);
+  updateRow_('Assignments', a._row, { status: undo ? 'published' : 'cancelled' });
+  return { ok: true };
+}
+/** Delete: only while nobody has started it (the row stays in the Sheet, status "deleted", shown nowhere). */
+function deleteAssignment(code, aid, undo) {
+  requireTeacher_(code);
+  var r = readTable_('Assignments').rows.filter(function (x) { return String(x.assignment_id) === String(aid); })[0];
+  if (!r) throw new Error('FORM: Assignment not found.');
+  if (undo) { updateRow_('Assignments', r._row, { status: 'published' }); return { ok: true }; }
+  if (asgSets_(aid).length) throw new Error('FORM: Someone has started it: cancel it instead.');
+  updateRow_('Assignments', r._row, { status: 'deleted' });
+  return { ok: true };
+}
+
+/* ---------------- student side ---------------- */
+function assignmentFor_(a, c) { return String(a.status) === 'published' && targetMembers_(a).indexOf(c) >= 0; }
+/** Home card ① for one student: published, available from today, not yet submitted by them. */
+function assignmentsFor_(c, sets) {
+  var today = fmtDate_(new Date(), 'yyyy-MM-dd');
+  return readTable_('Assignments').rows.filter(function (a) { return a.assignment_id && assignmentFor_(a, c) && fmtDay_(a.available_from) <= today; }).map(function (a) {
+    if (String(a.kind) === MOD_KIND) {                               // #101 real-test module (Module 1 → Module 2)
+      var mc = modCardFor_(a, c, sets); if (!mc) return null;
+      var du = fmtDay_(a.due);
+      mc.assignment_id = String(a.assignment_id); mc.title = String(a.title); mc.due = du ? dayStr_(du, true) : ''; mc.when = 'from ' + dayStr_(fmtDay_(a.available_from)) + (du ? ' · due ' + dayStr_(du, true) : '');
+      return mc;
+    }
+    var s = sets.filter(function (x) { return String(x.assignment_id) === String(a.assignment_id); })[0];
+    if (s && isFinished_(s)) return null;
+    var stt = s ? parseState_(s) || {} : {}, ps = (stt.parts || {})[SET_PART] || {}, nAns = Object.keys(ps.ans || {}).length, n = setQids_(a).length;
+    var due = fmtDay_(a.due), when = 'from ' + dayStr_(fmtDay_(a.available_from)) + (due ? ' · due ' + dayStr_(due, true) : '');
+    if (String(a.kind) === 'placement') return { assignment_id: String(a.assignment_id), title: String(a.title), placement: true, n: 0, when: when, due: due ? dayStr_(due, true) : '',
+      set_id: s ? String(s.set_id) : '', answered: s ? Math.max(0, (Number(s.n) || 1) - 1) : 0 };
+    // #43 focus card: the skills and difficulties of the assignment (from its topics) + the due day
+    var tp = []; try { tp = JSON.parse(String(a.topics || '[]')) || []; } catch (e) {}
+    var sk = [], df = {};
+    tp.forEach(function (t) { var nm = skillName_(t.code); if (nm && sk.indexOf(nm) < 0) sk.push(nm); String(t.diffs || '').toUpperCase().split(/[^EMH]+/).forEach(function (d) { if (d) df[d] = 1; }); });
+    return { assignment_id: String(a.assignment_id), title: String(a.title), n: n, when: when, set_id: s ? String(s.set_id) : '', answered: nAns,
+             due: due ? dayStr_(due, true) : '', skills: sk.slice(0, 3), more_skills: Math.max(0, sk.length - 3), diffs: ['E', 'M', 'H'].filter(function (d) { return df[d]; }).join(',') };
+  }).filter(Boolean);
+}
+function dayStr_(ymd, withDay) {
+  var d = new Date(ymd + 'T12:00:00+07:00'); if (isNaN(d.getTime())) return ymd;
+  return fmtDate_(d, withDay ? 'EEE d MMM' : 'd MMM');
+}
+function startAssignment(code, aid, opts) { return withSet_(startAssignmentCore_(code, aid), code, opts); }
+function startAssignmentCore_(code, aid) {
+  var st = requireStudent_(code), c = normCode_(st.student_code);
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var a = readTable_('Assignments').rows.filter(function (x) { return String(x.assignment_id) === String(aid); })[0];
+    if (!a || !assignmentFor_(a, c) || fmtDay_(a.available_from) > fmtDate_(new Date(), 'yyyy-MM-dd')) throw new Error('FORM: This assignment is not available.');
+    if (String(a.kind) === MOD_KIND) return startModule_(a, c);       // #101 one set per module, built now for this student
+    var have = readTable_('Sets').rows.filter(function (s) { return normCode_(s.student_code) === c && String(s.assignment_id) === String(aid); })[0];
+    if (have) return { ok: true, set_id: String(have.set_id), resumed: true, done: isFinished_(have) };
+    if (String(a.kind) === 'placement') return startPlacement_(a, c);
+    var setId = newSetId_(c), q = setQids_(a);
+    appendObjects_('Sets', [{ set_id: setId, student_code: c, kind: 'assignment', assignment_id: String(aid), skill: '', n: q.length, qids: q.join(','),
+                              created_at: nowIso_(), status: 'in_progress', events_saved: 0, last_saved_at: nowIso_() }]);
+    return { ok: true, set_id: setId, n: q.length };
+  } finally { lock.releaseLock(); }
+}
+var _asgTitle = null;
+function assignmentTitle_(aid) {
+  if (!_asgTitle) { _asgTitle = {}; try { readTable_('Assignments').rows.forEach(function (a) { _asgTitle[String(a.assignment_id)] = String(a.title || ''); }); } catch (e) {} }
+  return _asgTitle[String(aid)] || 'Assignment';
+}
+
+/** #66 the normal time of an answer = its time / pace ratio (the ratio #48 computed against Time_Norms) — for "normal 1:10 (220 %)". */
+function normSec_(r) { var p = Number(r.pace_ratio) || 0, t = Number(r.time_try1_sec) || 0; return p > 0 && t > 0 ? Math.round(t / p) : null; }

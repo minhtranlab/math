@@ -1,0 +1,3 @@
+// GENERATED from reuse/taxonomy/sat_time_norms.csv (Math rows; SC, FINAL 2026-11-10) by tools/build_time_norms.py.
+// Default content of the Sheet tab Time_Norms; the tab (editable by Minh) is what the app reads.
+var TIME_NORMS_DEFAULT_ = [["section", "skill", "difficulty", "qtype", "target_sec", "fast_below_sec", "slow_above_sec"], ["Math", "*", "E", "mcq", "55", "28", "82"], ["Math", "*", "E", "spr", "60", "30", "90"], ["Math", "*", "M", "mcq", "85", "42", "128"], ["Math", "*", "M", "spr", "95", "48", "142"], ["Math", "*", "H", "mcq", "115", "58", "172"], ["Math", "*", "H", "spr", "130", "65", "195"]];
