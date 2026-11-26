@@ -11,11 +11,11 @@ var TABS_ = [
   [TAB.CLASSES, ['class_id', 'name', 'student_codes', 'active', 'created_in', 'note']],
   [TAB.SKILLS, ['topic', 'topic_name', 'skill', 'skill_name', 'subskill', 'subskill_name', 'prereq', 'order', 'active', 'map_version', 'note']],
   [TAB.PATHS, ['student_code', 'target_type', 'target_id', 'active', 'added_at', 'added_by', 'note']],
-  [TAB.SKILL_STATUS, ['student_code', 'subskill', 'level', 'steps', 'status', 'n_attempts', 'n_right1', 'n_wrong2', 'n_hints', 'last_at', 'updated_at']],
+  [TAB.SKILL_STATUS, ['student_code', 'subskill', 'level', 'steps', 'status', 'n_attempts', 'n_right1', 'n_wrong2', 'n_hints', 'last_at', 'updated_at', 'position', 'history', 'override']],
   [TAB.ATTEMPTS, ['attempt_id', 'student_code', 'kind', 'scope', 'qid', 'subskill', 'skill', 'difficulty', 'started_at', 'finished_at', 'status',
                   'n_tries', 'try1_correct', 'correct', 'result', 'answer_shown', 'hint_used', 'n_hints', 'time_try1_sec', 'time_total_sec',
-                  'slow_above_sec', 'pace', 'step_credit', 'device', 'note']],
-  [TAB.TRIES, ['attempt_id', 'student_code', 'qid', 'try_no', 'answer', 'correct', 'mistake_type', 'time_sec', 'client_said', 'at']],
+                  'slow_above_sec', 'pace', 'step_credit', 'device', 'note', 'level_at_start', 'counted', 'time_answer_sec', 'away_n', 'away_sec']],
+  [TAB.TRIES, ['attempt_id', 'student_code', 'qid', 'try_no', 'answer', 'correct', 'mistake_type', 'time_sec', 'client_said', 'at', 'time_answer_sec']],
   [TAB.HINTS, ['attempt_id', 'student_code', 'qid', 'subskill', 'after_tries', 'at']],
   [TAB.REVIEW, ['student_code', 'qid', 'subskill', 'attempt_id', 'reason', 'added_at', 'status', 'cleared_at', 'cleared_by', 'note']],
   [TAB.QUESTIONS, ['qid', 'batch', 'version', 'version_of', 'type', 'topic', 'skill', 'subskill', 'difficulty', 'level', 'key', 'accepted', 'round',
@@ -23,6 +23,7 @@ var TABS_ = [
   [TAB.BATCHES, ['batch', 'title', 'source_type', 'n_items', 'n_live', 'uploaded_at', 'live', 'file_id', 'note']],
   [TAB.ITEM_OVERRIDES, ['qid', 'difficulty', 'status', 'set_by', 'set_at', 'note']],
   [TAB.TIME_NORMS, ['difficulty', 'qtype', 'target_sec', 'slow_above_sec', 'note']],
+  [TAB.LEVEL_OVERRIDES, ['student_code', 'subskill', 'set_to', 'set_by', 'set_at', 'note']],
   [TAB.DICTIONARY, ['tab', 'column', 'meaning', 'example']]
 ];
 

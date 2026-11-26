@@ -26,11 +26,17 @@ var API = (function () {
   return {
     login: function (code, device, withHome) { return read('login', [code, device, withHome]); },
     homeData: function (code) { return read('homeData', [code]); },
+    mySkills: function (code) { return read('mySkills', [code]); },
     reviewList: function (code) { return read('reviewList', [code]); },
     nextQuestion: function (code, opts) { return run('nextQuestion', [code, opts || {}]); },
     submitTry: function (code, attemptId, answer, sec, clientSaid) { return run('submitTry', [code, attemptId, answer, sec, clientSaid]); },
     useHint: function (code, attemptId) { return run('useHint', [code, attemptId]); },
     teacherHome: function (code, fresh) { return read('teacherHome', [code, !!fresh]); },
+    teacherPathData: function (code, fresh) { return read('teacherPathData', [code, !!fresh]); },
+    teacherSetPath: function (code, student, subIds) { return run('teacherSetPath', [code, student, subIds]); },
+    teacherGrid: function (code, fresh) { return read('teacherGrid', [code, !!fresh]); },
+    teacherCell: function (code, student, sub, fresh) { return read('teacherCell', [code, student, sub, !!fresh]); },
+    teacherSetLevel: function (code, student, sub, setTo) { return run('teacherSetLevel', [code, student, sub, setTo]); },
     decodeKey: decodeKey, msg: msg
   };
 })();

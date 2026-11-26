@@ -137,6 +137,149 @@
    "code": "FX003"
   },
   {
+   "qid": "FX-005",
+   "batch": "FX1",
+   "source": {
+    "set": "FX1",
+    "note": "made-up fixture"
+   },
+   "type": "mcq",
+   "stem_html": "<p>Made-up M: which side is adjacent to angle \\(X\\)?</p>",
+   "figures": [],
+   "choices": [
+    {
+     "label": "A",
+     "html": "\\(XZ\\)",
+     "mistake_type": ""
+    },
+    {
+     "label": "B",
+     "html": "\\(YZ\\)",
+     "mistake_type": "opp_adj_swapped"
+    }
+   ],
+   "key": "A",
+   "accepted": [],
+   "answer": {
+    "round": "",
+    "unit": ""
+   },
+   "wrong_answers": [],
+   "tags": {
+    "topic": "TRIG",
+    "skill": "TRIG.RT",
+    "subskill": "TRIG.RT.LABEL",
+    "difficulty": "M",
+    "level": 1
+   },
+   "params": null,
+   "seed": null,
+   "hint_html": "<p>Made-up hint.</p>",
+   "hint_status": "reviewed",
+   "solution_html": "",
+   "status": "keep",
+   "version": "A",
+   "version_of": null,
+   "code": "FX005"
+  },
+  {
+   "qid": "FX-006",
+   "batch": "FX1",
+   "source": {
+    "set": "FX1",
+    "note": "made-up fixture"
+   },
+   "type": "mcq",
+   "stem_html": "<p>Made-up H: which side is the hypotenuse?</p>",
+   "figures": [],
+   "choices": [
+    {
+     "label": "A",
+     "html": "\\(XZ\\)",
+     "mistake_type": ""
+    },
+    {
+     "label": "B",
+     "html": "\\(YZ\\)",
+     "mistake_type": ""
+    },
+    {
+     "label": "C",
+     "html": "\\(XY\\)",
+     "mistake_type": ""
+    }
+   ],
+   "key": "C",
+   "accepted": [],
+   "answer": {
+    "round": "",
+    "unit": ""
+   },
+   "wrong_answers": [],
+   "tags": {
+    "topic": "TRIG",
+    "skill": "TRIG.RT",
+    "subskill": "TRIG.RT.LABEL",
+    "difficulty": "H",
+    "level": 1
+   },
+   "params": null,
+   "seed": null,
+   "hint_html": "<p>Made-up hint.</p>",
+   "hint_status": "reviewed",
+   "solution_html": "",
+   "status": "keep",
+   "version": "A",
+   "version_of": null,
+   "code": "FX006"
+  },
+  {
+   "qid": "FX-007",
+   "batch": "FX1",
+   "source": {
+    "set": "FX1",
+    "note": "made-up fixture"
+   },
+   "type": "mcq",
+   "stem_html": "<p>Made-up E2: right angle at \\(C\\). Opposite angle \\(B\\)?</p>",
+   "figures": [],
+   "choices": [
+    {
+     "label": "A",
+     "html": "\\(AC\\)",
+     "mistake_type": ""
+    },
+    {
+     "label": "B",
+     "html": "\\(BC\\)",
+     "mistake_type": "opp_adj_swapped"
+    }
+   ],
+   "key": "A",
+   "accepted": [],
+   "answer": {
+    "round": "",
+    "unit": ""
+   },
+   "wrong_answers": [],
+   "tags": {
+    "topic": "TRIG",
+    "skill": "TRIG.RT",
+    "subskill": "TRIG.RT.LABEL",
+    "difficulty": "E",
+    "level": 1
+   },
+   "params": null,
+   "seed": null,
+   "hint_html": "<p>Made-up hint.</p>",
+   "hint_status": "reviewed",
+   "solution_html": "",
+   "status": "keep",
+   "version": "A",
+   "version_of": null,
+   "code": "FX007"
+  },
+  {
    "qid": "FX-004",
    "batch": "FX1",
    "source": {

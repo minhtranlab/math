@@ -10,13 +10,13 @@ const call = (fn, ...a) => { g.fresh(); return g.call(fn, a); };
 const T = n => g.table(n);
 
 console.log('update');
-const tabs = ['README', 'Settings', 'Students', 'Classes', 'Skills', 'Paths', 'Skill_Status', 'Attempts', 'Tries', 'Hints', 'Review', 'Questions', 'Batches', 'Item_Overrides', 'Time_Norms', 'Dictionary'];
-check(tabs.every(t => g.order.map(k => g.sheets[k].name).includes(t)), 'all 16 tabs exist (' + tabs.length + ')');
+const tabs = ['Level_Overrides', 'README', 'Settings', 'Students', 'Classes', 'Skills', 'Paths', 'Skill_Status', 'Attempts', 'Tries', 'Hints', 'Review', 'Questions', 'Batches', 'Item_Overrides', 'Time_Norms', 'Dictionary'];
+check(tabs.every(t => g.order.map(k => g.sheets[k].name).includes(t)), 'all 17 tabs exist (' + tabs.length + ')');
 check(T('Skills').length === 37, 'Skills seeded from the skill map: ' + T('Skills').length + ' sub-skills');
 check(T('Skills').every(r => /^(PYTH|TRIG)\.[A-Z0-9]+\.[A-Z0-9_]+$/.test(r.subskill)), 'sub-skill IDs look like TRIG.RT.SIDE_NUM');
 check(T('Time_Norms').length === 6, 'Time_Norms: 6 default rows');
 const qs = T('Questions');
-check(qs.length === 4 && qs.filter(q => q.status === 'live').length === 3 && qs.find(q => q.qid === 'FX-004').status === 'hold', 'library: 4 questions, 3 live, draft-hint item on hold');
+check(qs.length === 7 && qs.filter(q => q.status === 'live').length === 6 && qs.find(q => q.qid === 'FX-004').status === 'hold', 'library: 7 questions, 6 live, draft-hint item on hold');
 check(T('Batches')[0].live === 'Yes', 'fixture batch live from the start (live_default)');
 check(/all good/.test(g.ctx.checkSheet_()), 'checkSheet: ' + g.ctx.checkSheet_());
 // re-run: idempotent + a sub-skill that leaves the map stays as active = No
@@ -25,7 +25,7 @@ g.fresh(); g.ctx.APP_BUILD = 'b2'; const r2 = g.admin('doUpdate');
 check(/done/.test(r2.status), 'second update runs: ' + r2.status);
 const sk = T('Skills');
 check(sk.length === 37 && sk.find(r => r.subskill === 'TRIG.GR.TRANSF').active === 'No', 'seed re-run: 37 rows, removed ID kept with active = No');
-check(T('Questions').length === 4 && T('Time_Norms').length === 6, 'update twice: no duplicate rows');
+check(T('Questions').length === 7 && T('Time_Norms').length === 6, 'update twice: no duplicate rows');
 check(T('Settings').filter(r => r.key === 'max_tries').length === 1, 'Settings rows not doubled');
 
 console.log('login');
@@ -37,7 +37,7 @@ let thrown = ''; try { call('teacherHome', 'FX-T01'); } catch (e) { thrown = e.m
 
 console.log('home + one question (sample: no path)');
 const h = call('homeData', 'FX-T01');
-check(h.path.length === 0 && h.sample_n === 3 && h.review.length === 0, 'no path → 3 sample questions, empty review list');
+check(h.path.length === 0 && h.sample_n === 6 && h.review.length === 0, 'no path → 6 sample questions, empty review list');
 const q1 = call('nextQuestion', 'FX-T01', {});
 check(q1.ok && q1.q.qid === 'FX-001' && q1.max_tries === 2, 'first question: FX-001 (skill-map order), 2 tries');
 const pay = JSON.stringify(q1);
@@ -53,7 +53,7 @@ t = call('submitTry', 'FX-T01', q1.attempt_id, 'B', 9, true);
 check(t.correct && t.finished && t.result === 'right_2' && t.step_credit === 0, 'try 2 right → right_2, step 0 (stay)');
 check(call('submitTry', 'FX-T01', q1.attempt_id, 'B', 3, true).finished === true && T('Tries').length === 2, 'a 3rd try is refused');
 
-const q2 = call('nextQuestion', 'FX-T01', { after: 'FX-001' });
+const q2 = call('nextQuestion', 'FX-T01', { subskill: 'TRIG.RT.SIDE_NUM' });
 check(q2.q.qid === 'FX-002' && q2.q.type === 'num' && q2.q.unit === 'cm', 'next: FX-002 numeric, unit cm');
 const hint = call('useHint', 'FX-T01', q2.attempt_id);
 check(hint.ok && /Made-up hint/.test(hint.hint_html) && T('Hints').length === 1, 'Hint: text returned + logged in Hints');
@@ -61,7 +61,7 @@ t = call('submitTry', 'FX-T01', q2.attempt_id, '5.000 cm', 20, true);
 const a2 = T('Attempts').find(r => r.attempt_id === q2.attempt_id);
 check(t.correct && t.result === 'right_1' && t.step_credit === 1 && a2.hint_used === 'Yes' && a2.pace === 'in_time', 'right on try 1 in time → step 1 (hint used, step unchanged)');
 
-const q3 = call('nextQuestion', 'FX-T01', { after: 'FX-002' });
+const q3 = call('nextQuestion', 'FX-T01', { subskill: 'TRIG.RT.ANGLE' });
 check(q3.q.qid === 'FX-003', 'next: FX-003');
 t = call('submitTry', 'FX-T01', q3.attempt_id, '53.1', 30, false);
 check(!t.correct && T('Tries').slice(-1)[0].mistake_type === 'ratio_upside_down', 'numeric wrong value tagged ratio_upside_down');
@@ -81,7 +81,7 @@ check(T('Review')[0].status === 'cleared' && call('homeData', 'FX-T01').review.l
 console.log('path');
 const hp = call('homeData', 'FX-T03');
 check(hp.path.length === 11, 'skill tick TRIG.RT (10) + sub-skill TRIG.BR.READ = 11 sub-skills on the path: ' + hp.path.length);
-check(hp.path[0].id === 'TRIG.RT.LABEL' && hp.path.find(p => p.id === 'TRIG.RT.LABEL').n_live === 1, 'skill-map order; live counts per sub-skill');
+check(hp.path[0].id === 'TRIG.RT.LABEL' && hp.path.find(p => p.id === 'TRIG.RT.LABEL').n_live === 4 && hp.next === 'TRIG.RT.LABEL', 'skill-map order; live counts; next = first not-solid sub-skill');
 const ps = call('nextQuestion', 'FX-T03', { subskill: 'TRIG.RT.ANGLE' });
 check(ps.q.qid === 'FX-003' && ps.scope === 'sub:TRIG.RT.ANGLE', 'Practise one sub-skill → its item');
 check(call('nextQuestion', 'FX-T03', { subskill: 'TRIG.BR.READ' }).empty === true, 'sub-skill without questions → empty message');

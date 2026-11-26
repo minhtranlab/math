@@ -9,7 +9,8 @@
  *         question library, Questions/Batches/Skills sync) · Practice.gs (student calls) · Teacher.gs (teacher calls)
  *         Setup.gs (tabs + columns) · Update.gs (per-deploy Sheet update) · SheetText.gs (README / Dictionary / meanings)
  *         Skills.gs (GENERATED skill map) · Index/Styles/Api/Client/TeacherPage.html (browser; Api.html = the api.js wrapper)
- * Browser → server calls (only these): login · homeData · nextQuestion · submitTry · useHint · reviewList · teacherHome
+ * Browser → server calls (only these): login · homeData · mySkills · nextQuestion · submitTry · useHint · reviewList ·
+ *   teacherHome · teacherPathData · teacherSetPath · teacherGrid · teacherCell · teacherSetLevel
  * The answer key never leaves the server except the ONE open question, encoded (Grade.gs encKey_); the server re-grades
  * every try (submitTry) and that is what is stored.
  * Source of truth: github.com/minhtranlab/math (PUBLIC: code only). Question data + keys live in the private Drive folder.
@@ -18,7 +19,7 @@
 var SHEET_ID = '1EPtPXzl8hsxJU1IVe5V7ud_SrlyB4GHqdb_cy2G-ufM';          // "MSB – Data" (My Drive › 📚 Academics › Math Skill Bank)
 var LIBRARY_FOLDER_ID = '1c9Mz7_tKbQ5-qZOSu2nxNR8TnAhi0-P3';             // "MSB - Library" (private): questions/<BATCH>.json
 var APP_NAME = 'Math Skill Bank';
-var APP_VERSION = 'v0.1.0 (2026-11-26, skeleton: sign-in, path, one question at a time, 2 tries, hint, review list, teacher view)';
+var APP_VERSION = 'v0.2.0 (2026-11-26, #7 path practice: levels E→M→H→Solid, assign path, status grid, My skills)';
 var APP_BUILD = 'dev';  // replaced by the GitHub Action with the commit id → the Sheet update (Update.gs) runs once per deploy
 
 /* ============================== web app ============================== */
@@ -54,13 +55,15 @@ var SETTINGS_DEFAULTS_ = {
   right_slow_credit: 0.5,               //   right on try 1 but slow = ½ step
   right_try2_credit: 0,                 //   right on try 2 = stay
   wrong_credit: 0,                      //   wrong twice = stay (never down)
-  steps_to_move_up: 3,                  //   steps needed at E (or M) to move up one level
+  steps_to_move_up: 3,                  //   steps needed at E (or M) to move up one level (BRAIN #18)
   steps_to_solid: 3,                    //   steps needed at H to be "solid"
   start_level: 'E',                     //   every sub-skill starts easy
   hint_counts: 'No',                    //   a hint does not change the step (it is logged and shown to the teacher)
   fallback_target_sec: 90, slow_ratio: 1.5,   // used only when Time_Norms has no row for an item
   round_length: '3sf', round_angle: '1dp',    // default rounding of template items (the question always says it)
-  review_after: 'wrong_twice'
+  review_after: 'wrong_twice',
+  away_min_sec: 2, away_flag_sec: 20,   // leaving the window: logged silently from 2 s; shown to the teacher from 20 s (SML #16, lesson 13)
+  ms_window_days: 60                    // My skills: first-try % over the last 60 days
 };
 var _settings = null;
 function getSettings_() {

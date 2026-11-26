@@ -36,7 +36,7 @@ document.addEventListener('click', function (ev) {
   if (act && act.getAttribute('data-act') === 'logout') { logout(); return; }
   if (!go) return;
   var g = go.getAttribute('data-go');
-  if (g === 'home') goHome(); else if (g === 'teacher' && S.teacher) openTeacher(false);
+  if (g === 'home') goHome(); else if (g === 'skills') openSkills(); else if (g === 'teacher' && S.teacher) openTeacher(false);
 });
 
 /* ---------------- home ---------------- */
@@ -46,6 +46,22 @@ function goHome() {
   show('scr-home'); $('#home-list').innerHTML = '<div class="spinner"></div>';
   API.homeData(S.code).then(renderHome).catch(function (e) { $('#home-list').innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p>'; });
 }
+var LVN = { E: 'Easy', M: 'Medium', H: 'Hard' };
+function half(n) { var w = Math.floor(n), h = n - w >= 0.5; return (w || !h ? w : '') + (h ? '½' : ''); }
+function chipOf(p) {
+  if (p.solid) return '<span class="chip so">Solid</span>';
+  if (p.status === 'not started') return '<span class="chip ns">Not started</span>';
+  return '<span class="chip pr">' + LVN[p.level] + ' · ' + half(p.steps) + '/' + p.need + '</span>';
+}
+function ladder(pos) {
+  var h = '<span class="lad" aria-label="' + pos + ' of 9">';
+  ['E', 'M', 'H'].forEach(function (L, g) {
+    h += '<span class="lg"><i class="ll">' + L + '</i>';
+    for (var i = 0; i < 3; i++) { var k = 3 * g + i, c = pos >= k + 1 ? 'f' : pos >= k + 0.5 ? 'h' : ''; h += '<b class="' + c + '"></b>'; }
+    h += '</span>';
+  });
+  return h + '<span class="ls' + (pos >= 9 ? ' on' : '') + '">Solid</span></span>';
+}
 function renderHome(h) {
   if (!h) { goHome(); return; }
   S.home = h; location.hash = 'home'; show('scr-home');
@@ -53,19 +69,17 @@ function renderHome(h) {
   $('#home-hello').textContent = 'Hi ' + (S.name.split(' ')[0] || '') + '!';
   var out = '';
   if (h.path.length) {
-    var canAll = h.path.some(function (p) { return p.n_live > 0; });
-    out += '<div class="card"><div><p class="eyebrow">My path</p><h3>' + h.path.length + ' sub-skill' + (h.path.length === 1 ? '' : 's') + '</h3>' +
+    var nSolid = h.path.filter(function (p) { return p.solid; }).length;
+    out += '<div class="card"><div><p class="eyebrow">My path · ' + nSolid + ' of ' + h.path.length + ' solid</p>' +
+           '<h3>' + (h.next ? esc(h.next_name) : (nSolid === h.path.length ? 'All solid' : 'No questions yet')) + '</h3>' +
            '<p class="sub">' + h.n_done + ' question' + (h.n_done === 1 ? '' : 's') + ' done</p></div>' +
-           '<button class="btn big" type="button" data-start="path"' + (canAll ? '' : ' disabled') + '>Practise</button></div>';
-    var bySkill = [], last = null;
-    h.path.forEach(function (p) { if (!last || last.name !== p.skill) { last = { name: p.skill, rows: [] }; bySkill.push(last); } last.rows.push(p); });
-    out += '<h2 class="h2">Sub-skills</h2>';
-    bySkill.forEach(function (s) {
-      out += '<div class="skill"><b>' + esc(s.name) + '</b>' + s.rows.map(function (p) {
-        var chip = p.status === 'solid' ? 'so' : p.status === 'practising' ? 'pr' : 'ns';
+           '<div class="cta"><button class="btn big" type="button" data-start="path"' + (h.next ? '' : ' disabled') + '>Practise</button>' +
+           '<button class="btn ghost" type="button" data-go="skills">My skills</button></div></div>';
+    var by = {}; h.path.forEach(function (p) { (by[p.skill_id] = by[p.skill_id] || []).push(p); });
+    h.skills.forEach(function (k) {
+      out += '<div class="skill"><b>' + esc(k.name) + ' <span class="muted kn">' + k.solid + ' of ' + k.n + ' solid</span></b>' + by[k.id].map(function (p) {
         return '<div class="row"><span class="nm">' + esc(p.name) + '<span class="id">' + esc(p.id) + '</span></span>' +
-               '<span><span class="chip ' + chip + '">' + esc(p.status === 'not started' ? 'Not started' : p.status === 'solid' ? 'Solid' : 'Practising') + '</span></span>' +
-               '<span class="n">' + p.n_done + ' done</span>' +
+               '<span>' + chipOf(p) + '</span><span class="n">' + p.n_done + ' done</span>' +
                (p.n_live ? '<button class="btn ghost small" type="button" data-start="sub" data-id="' + esc(p.id) + '">Practise</button>' : '<span class="muted" style="font-size:14px">No questions yet</span>') + '</div>';
       }).join('') + '</div>';
     });
@@ -82,12 +96,50 @@ function renderHome(h) {
   } else out += '<p class="empty">Nothing to review.</p>';
   $('#home-list').innerHTML = out;
 }
+
+/* ---------------- My skills ---------------- */
+function openSkills() {
+  if (!S.code) { show('scr-login'); return; }
+  location.hash = 'skills'; show('scr-skills'); $('#ms-list').innerHTML = '<div class="spinner"></div>';
+  API.mySkills(S.code).then(function (d) {
+    var h = '<div class="tbar"><h2 class="h2" style="margin:0">My skills</h2><span class="stamp">' + d.n_solid + ' of ' + d.n + ' solid' +
+            (d.week_gain ? ' · <span class="gain">+' + half(d.week_gain) + ' this week</span>' : '') + '</span></div>';
+    if (!d.n) h += '<p class="empty">Your teacher has not set your path yet.</p>';
+    d.skills.forEach(function (k) {
+      h += '<div class="skill"><b>' + esc(k.name) + ' <span class="muted kn">' + k.solid + ' of ' + k.n + ' solid</span></b>' + k.subs.map(function (x) {
+        return '<div class="row ms"><span class="nm">' + esc(x.name) + '<span class="id">' + esc(x.id) + '</span></span>' + ladder(x.position) +
+               '<span class="n">' + (x.ft_n ? x.ft_pct + '% first try <span class="muted">(' + x.ft_n + ')</span>' : '<span class="muted">—</span>') +
+               (x.gain ? ' <span class="gain">+' + half(x.gain) + '</span>' : '') + '</span>' +
+               (x.n_live ? '<button class="btn ghost small" type="button" data-start="sub" data-id="' + esc(x.id) + '">Practise</button>' : '<span></span>') + '</div>';
+      }).join('') + '</div>';
+    });
+    $('#ms-list').innerHTML = h;
+  }).catch(function (e) { $('#ms-list').innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p>'; });
+}
+$('#ms-list').addEventListener('click', function (ev) {
+  var b = ev.target.closest('[data-start]'); if (!b) return;
+  S.scope = { subskill: b.getAttribute('data-id') }; openQuestion(null);
+});
 $('#home-list').addEventListener('click', function (ev) {
   var b = ev.target.closest('[data-start]'); if (!b) return;
   var k = b.getAttribute('data-start');
   S.scope = k === 'sub' ? { subskill: b.getAttribute('data-id') } : k === 'review' ? { review: true } : {};
   openQuestion(null);
 });
+
+/* ---------------- timing (SML #16): time to the FINAL answer + leaving the window, logged silently ---------------- */
+var AWAY_MIN = 2000;
+function tryStart() { S.shownAt = Date.now(); S.changedAt = 0; S.awayN = 0; S.awaySec = 0; S.awayFrom = 0; }
+function changed() { S.changedAt = Date.now(); }
+function awayStart() { if (S.cur && !S.busy && !S.awayFrom) S.awayFrom = Date.now(); }
+function awayEnd() { if (!S.awayFrom) return; var d = Date.now() - S.awayFrom; S.awayFrom = 0; if (d >= AWAY_MIN) { S.awayN++; S.awaySec += Math.round(d / 1000); } }
+document.addEventListener('visibilitychange', function () { if (document.hidden) awayStart(); else awayEnd(); });
+window.addEventListener('blur', awayStart); window.addEventListener('focus', awayEnd);
+function timing() {
+  awayEnd();
+  var now = Date.now(), sec = Math.round((now - S.shownAt) / 1000), ans = S.changedAt ? Math.round((S.changedAt - S.shownAt) / 1000) : sec;
+  return { sec: sec, answer_sec: Math.min(sec, ans), away_n: S.awayN, away_sec: S.awaySec };
+}
 
 /* ---------------- one question ---------------- */
 function openQuestion(after) {
@@ -96,12 +148,12 @@ function openQuestion(after) {
   var opts = {}; Object.keys(S.scope).forEach(function (k) { opts[k] = S.scope[k]; });
   if (after) opts.after = after; opts.device = deviceId();
   API.nextQuestion(S.code, opts).then(function (r) {
-    if (!r.ok) { $('#q-card').innerHTML = '<p class="empty">' + esc(r.msg || 'No questions here yet.') + '</p><div class="actions"><button class="btn" type="button" data-go="home">Home</button></div>'; return; }
+    if (!r.ok) { $('#q-card').innerHTML = '<p class="empty">' + esc(r.msg || 'No questions here yet.') + '</p><div class="actions"><button class="btn" type="button" data-go="home">Home</button>' + (r.done_all ? '<button class="btn ghost" type="button" data-go="skills">My skills</button>' : '') + '</div>'; return; }
     renderQuestion(r);
   }).catch(function (e) { $('#q-card').innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p><div class="actions"><button class="btn" type="button" data-go="home">Home</button></div>'; });
 }
 function renderQuestion(r) {
-  S.cur = r; S.sel = ''; S.busy = false; S.shownAt = Date.now();
+  S.cur = r; S.sel = ''; S.busy = false; tryStart();
   S.spec = API.decodeKey(r.k, r.attempt_id + '|' + r.q.qid);
   $('#q-sub').textContent = r.subskill;
   $('#q-cnt').textContent = r.n_done ? r.n_done + ' done' : '';
@@ -121,7 +173,7 @@ function renderQuestion(r) {
   if (r.hint_used && r.hint_html) showHint(r.hint_html);
   if (r.tries && r.tries.length) $('#q-fb').innerHTML = '<div class="fb no">Not quite — ' + (r.max_tries - r.tries.length) + ' try left</div>';
   typeset($('#q-card'));
-  var inp = $('#q-num'); if (inp) { inp.focus(); inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') check(); }); }
+  var inp = $('#q-num'); if (inp) { inp.focus(); inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') check(); }); inp.addEventListener('input', changed); }
 }
 function markTried(ans) {
   if (S.cur.q.type === 'mcq') { var b = $('.ch[data-l="' + String(ans).replace(/"/g, '') + '"]'); if (b) { b.classList.add('tried'); b.disabled = true; } }
@@ -130,7 +182,7 @@ function markTried(ans) {
 function showHint(html) { $('#q-hintbox').innerHTML = '<div class="hint"><span class="lab">Hint</span>' + html + '</div>'; var hb = $('#q-hint'); if (hb) hb.disabled = true; typeset($('#q-hintbox')); }
 $('#q-card').addEventListener('click', function (ev) {
   var ch = ev.target.closest('.ch');
-  if (ch && !ch.disabled && !S.busy) { $$('.ch').forEach(function (b) { b.classList.toggle('sel', b === ch); }); S.sel = ch.getAttribute('data-l'); return; }
+  if (ch && !ch.disabled && !S.busy) { $$('.ch').forEach(function (b) { b.classList.toggle('sel', b === ch); }); S.sel = ch.getAttribute('data-l'); changed(); return; }
   if (ev.target.closest('#q-check')) { check(); return; }
   if (ev.target.closest('#q-hint')) { hint(); return; }
   if (ev.target.closest('#q-next')) { openQuestion(S.cur && S.cur.q.qid); return; }
@@ -141,7 +193,7 @@ function check() {
   var q = S.cur.q, ans = q.type === 'mcq' ? S.sel : ($('#q-num').value || '').trim();
   if (!ans) { $('#q-fb').innerHTML = '<div class="fb no">' + (q.type === 'mcq' ? 'Choose an answer.' : 'Type your answer.') + '</div>'; return; }
   S.busy = true;
-  var sec = Math.round((Date.now() - S.shownAt) / 1000), ok = S.spec ? msbGrade_(S.spec, ans) : null, tryNo = tryCount() + 1, max = S.cur.max_tries;
+  var sec = timing(), ok = S.spec ? msbGrade_(S.spec, ans) : null, tryNo = tryCount() + 1, max = S.cur.max_tries;
   S.cur.tries = (S.cur.tries || []).concat([{ try_no: tryNo, answer: ans, correct: !!ok }]);
   if (ok !== null) feedback(ok, tryNo >= max, ans, null);           // instant: the server's own rule, in the browser
   $('#q-sync').textContent = 'Saving…';
@@ -150,7 +202,8 @@ function check() {
     $('#q-sync').textContent = 'Saved ✓';
     if (ok === null || r.mismatch) feedback(r.correct, r.finished, ans, r);   // the server is the judge
     else if (r.finished && !r.correct) feedback(false, true, ans, r);
-    S.shownAt = Date.now();
+    if (r.progress) showProgress(r.progress);
+    tryStart();
   }).catch(function (e) {
     S.cur.tries.pop(); S.busy = false;
     $('#q-sync').textContent = '';
@@ -178,6 +231,11 @@ function feedback(ok, finished, ans, r) {
   typeset(fb);
   finish(r);
 }
+function showProgress(p) {
+  var el = $('#q-prog'); if (!el) { el = document.createElement('div'); el.id = 'q-prog'; $('#q-fb').appendChild(el); }
+  el.className = 'prog' + (p.moved ? ' up' : '');
+  el.innerHTML = (p.moved ? '<b>' + (p.solid ? 'Solid!' : 'Level up: ' + LVN[p.level]) + '</b> ' : '') + ladder(p.position) + (p.solid ? '' : ' <span class="muted">' + LVN[p.level] + ' · ' + half(p.steps) + ' of ' + p.need + '</span>');
+}
 function markRight() { if (S.cur.q.type === 'mcq') $$('.ch.sel').forEach(function (b) { b.classList.add('right'); }); }
 function finish() {
   S.busy = true;
@@ -197,6 +255,7 @@ function hint() {
 window.addEventListener('hashchange', function () {
   var h = location.hash.replace('#', '');
   if (h === 'home' && S.code && !$('#scr-home').classList.contains('on')) goHome();
+  if (h === 'skills' && S.code && !$('#scr-skills').classList.contains('on')) openSkills();
   if (!h && (S.code || S.teacher)) logout();
 });
 (function resume() {

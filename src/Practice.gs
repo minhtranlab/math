@@ -24,20 +24,36 @@ function openReview_(code) {
   return dataFilter_(TAB.REVIEW, function (r) { return normCode_(r.student_code) === c && clean_(r.status) === 'open'; });
 }
 
+/** Live items per sub-skill: {sub: n}. */
+function liveBySub_() { var o = {}; livePool_().forEach(function (r) { var u = clean_(r.subskill); o[u] = (o[u] || 0) + 1; }); return o; }
+/** The path with each sub-skill's progress, in skill-map order, and per-skill "x of y solid". */
+function pathProgress_(code) {
+  var subs = pathSubskills_(code), live = liveBySub_(), idx = skillIdx_();
+  var path = subs.map(function (u) {
+    var p = progressOf_(code, u);
+    return { id: u, name: subskillName_(u), skill_id: idx.subOf[u], skill: skillName_(idx.subOf[u]), n_live: live[u] || 0, n_done: p.n, n_right1: p.right1,
+             status: p.status, level: p.level, steps: p.steps, need: p.need, solid: p.solid, position: p.position, label: progressLabel_(p) };
+  });
+  var skills = [], last = null;
+  path.forEach(function (p) { if (!last || last.id !== p.skill_id) { last = { id: p.skill_id, name: p.skill, n: 0, solid: 0 }; skills.push(last); } last.n++; if (p.solid) last.solid++; });
+  return { path: path, skills: skills };
+}
+/** Home Practise = one sub-skill at a time: the first sub-skill of the path (skill-map order) that is not solid and has
+ *  live questions. null when every such sub-skill is solid (or none has questions). */
+function nextPathSub_(path) {
+  for (var i = 0; i < path.length; i++) if (!path[i].solid && path[i].n_live) return path[i].id;
+  return null;
+}
+
 /** Browser call: the home page data. */
 function homeData(code) {
   cachedReads_();
   var st = requireStudent_(code);
-  var subs = pathSubskills_(code), pool = livePool_(), att = attemptsOf_(code).filter(function (a) { return clean_(a.status) === 'done'; });
-  var liveBy = {}; pool.forEach(function (r) { var u = clean_(r.subskill); liveBy[u] = (liveBy[u] || 0) + 1; });
-  var path = subs.map(function (u) {
-    var mine = att.filter(function (a) { return clean_(a.subskill) === u; });
-    return { id: u, name: subskillName_(u), skill: skillName_(skillIdx_().subOf[u]), n_live: liveBy[u] || 0, n_done: mine.length,
-             n_right1: mine.filter(function (a) { return isYes_(a.try1_correct); }).length,
-             status: mine.length ? 'practising' : 'not started' };
-  });
+  var pp = pathProgress_(code), att = attemptsOf_(code).filter(function (a) { return clean_(a.status) === 'done'; });
   var rv = openReview_(code).map(function (r) { return { qid: clean_(r.qid), subskill: subskillName_(clean_(r.subskill)), added: dateStr_(r.added_at) }; });
-  return { name: String(st.name || ''), path: path, sample_n: subs.length ? 0 : pool.length, review: rv, n_done: att.length };
+  var nx = nextPathSub_(pp.path);
+  return { name: String(st.name || ''), path: pp.path, skills: pp.skills, next: nx, next_name: nx ? subskillName_(nx) : '',
+           sample_n: pp.path.length ? 0 : livePool_().length, review: rv, n_done: att.length };
 }
 
 /* ---------------- one question ---------------- */
@@ -71,40 +87,55 @@ function nextQuestion(code, opts) {
     var mine = attemptsOf_(code);
     var open = mine.filter(function (a) { return clean_(a.status) === 'open' && clean_(a.scope) === scope; })[0];
     if (open) { var oq = libQuestion_(clean_(open.qid)); if (oq) return questionPayload_(open, oq, scope); }
-    // pool for this scope
-    var pool = livePool_(), kind = 'practice';
+    // pool for this scope (path = one sub-skill at a time: the first not-solid sub-skill with questions)
+    var pool = livePool_(), kind = 'practice', sub = '', level = '';
     if (opts.review) {
       var want = {}; openReview_(code).forEach(function (r) { want[clean_(r.qid)] = 1; });
       pool = pool.filter(function (r) { return want[clean_(r.qid)]; }); kind = 'review';
-    } else if (opts.subskill) {
-      pool = pool.filter(function (r) { return clean_(r.subskill) === String(opts.subskill); });
     } else {
-      var subs = pathSubskills_(code);
-      if (subs.length) { var s = {}; subs.forEach(function (u) { s[u] = 1; }); pool = pool.filter(function (r) { return s[clean_(r.subskill)]; }); }
-      else kind = 'sample';
+      if (opts.subskill) sub = String(opts.subskill);
+      else if (pathSubskills_(code).length) {
+        sub = nextPathSub_(pathProgress_(code).path) || '';
+        if (!sub) return { ok: false, empty: true, done_all: true, msg: 'Every sub-skill on your path is solid.' };
+      } else kind = 'sample';
+      if (sub) { pool = pool.filter(function (r) { return clean_(r.subskill) === sub; }); level = progressOf_(code, sub).level; }
     }
     if (!pool.length) return { ok: false, empty: true, msg: opts.review ? 'Your review list is empty.' : 'No questions here yet.' };
-    // unseen first (skill-map order, then E < M < H), then the one done longest ago
-    var last = {}; mine.forEach(function (a) { if (clean_(a.status) === 'done') last[clean_(a.qid)] = Math.max(last[clean_(a.qid)] || 0, toMs_(a.finished_at)); });
-    var ord = skillIdx_().order, dOrd = { E: 1, M: 2, H: 3 };
-    pool.sort(function (x, y) {
-      var lx = last[clean_(x.qid)] || 0, ly = last[clean_(y.qid)] || 0;
-      if (!lx !== !ly) return lx ? 1 : -1;
-      if (lx && ly && lx !== ly) return lx - ly;
-      return (ord[clean_(x.subskill)] || 999) - (ord[clean_(y.subskill)] || 999) || (dOrd[clean_(x.difficulty)] || 9) - (dOrd[clean_(y.difficulty)] || 9) || (clean_(x.qid) < clean_(y.qid) ? -1 : 1);
-    });
-    if (opts.after && pool.length > 1 && clean_(pool[0].qid) === String(opts.after)) pool.push(pool.shift());   // never the same item twice in a row
+    var lastDone = mine.filter(function (x) { return clean_(x.status) === 'done'; }).sort(function (x, y) { return toMs_(x.finished_at) - toMs_(y.finished_at) || x._row - y._row; }).slice(-1)[0];
+    pool = orderPool_(pool, mine, level, opts.after || (lastDone ? clean_(lastDone.qid) : ''));
     var pick = pool[0], q = libQuestion_(clean_(pick.qid));
     if (!q) return { ok: false, empty: true, msg: 'This question could not be loaded. Tell your teacher.' };
     var a = { attempt_id: newId_('A'), student_code: normCode_(code), kind: kind, scope: scope, qid: q.qid, subskill: txt_(clean_(pick.subskill)),
               skill: txt_(clean_(pick.skill)), difficulty: clean_(pick.difficulty), started_at: nowIso_(), status: 'open', n_tries: 0, n_hints: 0,
-              device: txt_(String(opts.device || '').slice(0, 40)) };
+              device: txt_(String(opts.device || '').slice(0, 40)), level_at_start: level };
     dataAppend_(TAB.ATTEMPTS, [a]);
     a.attempt_id = String(a.attempt_id); a.subskill = clean_(pick.subskill);
     var done = mine.filter(function (x) { return clean_(x.status) === 'done'; }).length;
     var out = questionPayload_(a, q, scope); out.n_done = done; out.pool_n = pool.length;
     return out;
   } finally { lock.releaseLock(); }
+}
+
+/** Order a pool for picking (spec §5): items at the student's level first, then one level up (its right answers still
+ *  count), then lower levels (no credit, see Progress.gs); no level (samples / review) = all together. Inside: never seen
+ *  first, then done longest ago; then skill-map order, tags.level 1 < 2 < 3, qid. Never the same item twice in a row
+ *  (`after`) unless it is the only one. */
+function orderPool_(pool, mine, level, after) {
+  var last = {}; mine.forEach(function (a) { if (clean_(a.status) === 'done') last[clean_(a.qid)] = Math.max(last[clean_(a.qid)] || 0, toMs_(a.finished_at) || 1); });
+  var ord = skillIdx_().order, L = level ? lvIdx_(level) : -1;
+  function dist(r) { var d = lvIdx_(r.difficulty); if (L < 0) return 0; return d === L ? 0 : d > L ? 2 * (d - L) - 1 : 2 * (L - d); }
+  pool = pool.slice().sort(function (x, y) {
+    var dx = dist(x), dy = dist(y); if (dx !== dy) return dx - dy;
+    var lx = last[clean_(x.qid)] || 0, ly = last[clean_(y.qid)] || 0;
+    if (!lx !== !ly) return lx ? 1 : -1;
+    if (lx && ly && lx !== ly) return lx - ly;
+    return (ord[clean_(x.subskill)] || 999) - (ord[clean_(y.subskill)] || 999) || lvIdx_(x.difficulty) - lvIdx_(y.difficulty) || (Number(x.level) || 1) - (Number(y.level) || 1) || (clean_(x.qid) < clean_(y.qid) ? -1 : 1);
+  });
+  if (after && pool.length > 1 && clean_(pool[0].qid) === String(after)) {
+    var j = 1; while (j < pool.length && clean_(pool[j].qid) === String(after)) j++;
+    if (j < pool.length) pool.unshift(pool.splice(j, 1)[0]);
+  }
+  return pool;
 }
 
 /* ---------------- timing + step (pilot progression, spec §5) ---------------- */
@@ -131,6 +162,14 @@ function mistakeOf_(q, answer) {
   return hit ? clean_(hit.mistake_type) : '';
 }
 
+/** Seconds from the browser: a number (old pages) or {sec: to Check, answer_sec: to the last change of the answer = the
+ *  "final answer" time (SML #16), away_n / away_sec: times the window was left this try (silent log, SML #16 / lesson 13)}. */
+function timing_(t) {
+  var clamp = function (x) { return Math.max(0, Math.min(3600, Math.round(Number(x) || 0))); };
+  if (t && typeof t === 'object') { var sec = clamp(t.sec); return { sec: sec, answer: Math.min(sec, clamp(t.answer_sec === undefined ? t.sec : t.answer_sec)), away_n: clamp(t.away_n), away_sec: clamp(t.away_sec) }; }
+  var n = clamp(t); return { sec: n, answer: n, away_n: 0, away_sec: 0 };
+}
+
 /** Browser call: one try. The server grades it again (truth) and stores it; clientSaid = what the browser showed. */
 function submitTry(code, attemptId, answer, timeSec, clientSaid) {
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
@@ -143,21 +182,31 @@ function submitTry(code, attemptId, answer, timeSec, clientSaid) {
     if (!answer) return { ok: false, msg: 'Type an answer first.' };
     var q = libQuestion_(clean_(a.qid));
     if (!q) throw new Error('SESSION: This question could not be loaded.');
-    var correct = msbGrade_(answerSpec_(q), answer), tryNo = tries.length + 1, sec = Math.max(0, Math.min(3600, Math.round(Number(timeSec) || 0)));
+    var tm = timing_(timeSec), correct = msbGrade_(answerSpec_(q), answer), tryNo = tries.length + 1, sec = tm.sec;
     dataAppend_(TAB.TRIES, [{ attempt_id: txt_(attemptId), student_code: normCode_(code), qid: q.qid, try_no: tryNo, answer: txt_(answer),
                               correct: correct ? 'Yes' : 'No', mistake_type: correct ? '' : mistakeOf_(q, answer), time_sec: sec,
-                              client_said: clientSaid === undefined || clientSaid === null ? '' : (clientSaid ? 'Yes' : 'No'), at: nowIso_() }]);
+                              client_said: clientSaid === undefined || clientSaid === null ? '' : (clientSaid ? 'Yes' : 'No'), at: nowIso_(),
+                              time_answer_sec: tm.answer }]);
+    var awayN = (Number(a.away_n) || 0) + tm.away_n, awaySec = (Number(a.away_sec) || 0) + tm.away_sec;
     var finished = correct || tryNo >= max, out = { ok: true, correct: correct, try_no: tryNo, tries_left: Math.max(0, max - tryNo), finished: finished,
                mismatch: clientSaid !== undefined && clientSaid !== null && !!clientSaid !== correct };
-    if (!finished) return out;
+    if (!finished) { if (tm.away_n) dataUpdate_(TAB.ATTEMPTS, a._row, { away_n: awayN, away_sec: awaySec }); return out; }
     var times = tries.map(function (t) { return Number(t.time_sec) || 0; }).concat([sec]);
-    var t1 = times[0], slowAt = slowAbove_(a.difficulty, q.type), result = correct ? (tryNo === 1 ? 'right_1' : 'right_2') : 'wrong_2';
+    var ans1 = tries.length ? Number(tries[0].time_answer_sec === '' || tries[0].time_answer_sec === undefined ? tries[0].time_sec : tries[0].time_answer_sec) || 0 : tm.answer;
+    var t1 = ans1, slowAt = slowAbove_(a.difficulty, q.type), result = correct ? (tryNo === 1 ? 'right_1' : 'right_2') : 'wrong_2';
     var slow = t1 > slowAt, credit = stepCredit_(result, slow);
+    var track = clean_(a.kind) !== 'sample' && clean_(a.subskill), before = track ? progressOf_(code, clean_(a.subskill)) : null;
     dataUpdate_(TAB.ATTEMPTS, a._row, { status: 'done', finished_at: nowIso_(), n_tries: tryNo, try1_correct: tryNo === 1 && correct ? 'Yes' : 'No',
       correct: correct ? 'Yes' : 'No', result: result, answer_shown: correct ? '' : 'Yes', time_try1_sec: t1,
       time_total_sec: times.reduce(function (s, x) { return s + x; }, 0), slow_above_sec: slowAt, pace: correct && tryNo === 1 ? (slow ? 'slow' : 'in_time') : '',
-      step_credit: credit });
+      step_credit: credit, time_answer_sec: tries.map(function (t) { return Number(t.time_answer_sec) || 0; }).concat([tm.answer]).slice(-1)[0],
+      away_n: awayN, away_sec: awaySec, counted: a.level_at_start ? (credit > 0 && creditCounts_(a.difficulty, a.level_at_start) ? 'Yes' : 'No') : '' });
     out.result = result; out.step_credit = credit; out.slow = slow;
+    if (track) {
+      var p = refreshStatus_(code, clean_(a.subskill));
+      out.progress = { label: progressLabel_(p), level: p.level, steps: p.steps, need: p.need, solid: p.solid, position: p.position,
+                       moved: p.solid !== before.solid || p.level !== before.level ? (p.solid ? 'Solid' : p.level) : '' };
+    }
     if (!correct) {
       out.answer = answerText_(q);
       var have = openReview_(code).some(function (r) { return clean_(r.qid) === q.qid; });

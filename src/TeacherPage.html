@@ -3,13 +3,20 @@
    One overview: students · wrong twice (to explain) · hint use · recent answers. "Refresh" reads the Sheet itself
    (SAT lesson #4: snapshots make teacher views stale). Assign path + status grid come in the next ticket. */
 var RES_TEXT = { right_1: 'Right 1st try', right_2: 'Right 2nd try', wrong_2: 'Wrong twice' };
+var T = { tab: 'overview', student: '', path: null, cell: null };
+var TABS = [['overview', 'Overview'], ['path', 'Assign path'], ['grid', 'Status grid']];
+function tabsBar() { return '<div class="tabs">' + TABS.map(function (t) { return '<button type="button" class="tab' + (T.tab === t[0] ? ' on' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>'; }
+function tbar(title, stamp) { return tabsBar() + '<div class="tbar"><h2 class="h2" style="margin:0">' + title + '</h2><button class="btn ghost small" id="t-refresh" type="button">Refresh</button><span class="stamp">' + stamp + '</span></div>'; }
 function openTeacher(fresh) {
   if (!S.teacher) { show('scr-login'); return; }
   show('scr-teacher');
   var m = $('#t-main');
-  if (!m.querySelector('.tbar')) m.innerHTML = '<div class="spinner"></div>';
+  if (!m.querySelector('.tbar')) m.innerHTML = tabsBar() + '<div class="spinner"></div>';
   else { var b = $('#t-refresh'); if (b) { b.disabled = true; b.textContent = 'Refreshing…'; } }
-  API.teacherHome(S.teacher, fresh).then(renderTeacher).catch(function (e) { m.innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p><button class="btn" id="t-refresh" type="button">Refresh</button>'; });
+  var fail = function (e) { m.innerHTML = tabsBar() + '<p class="err">' + esc(API.msg(e)) + '</p><button class="btn" id="t-refresh" type="button">Refresh</button>'; };
+  if (T.tab === 'path') API.teacherPathData(S.teacher, fresh).then(renderPath).catch(fail);
+  else if (T.tab === 'grid') API.teacherGrid(S.teacher, fresh).then(renderGrid).catch(fail);
+  else API.teacherHome(S.teacher, fresh).then(renderTeacher).catch(fail);
 }
 function tTable(cols, rows, empty) {
   if (!rows.length) return '<p class="empty">' + empty + '</p>';
@@ -17,8 +24,7 @@ function tTable(cols, rows, empty) {
     rows.map(function (r) { return '<tr>' + cols.map(function (c) { return '<td' + (c[2] ? ' class="r"' : '') + '>' + c[1](r) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
 }
 function renderTeacher(d) {
-  var h = '<div class="tbar"><h2 class="h2" style="margin:0">Overview</h2><button class="btn ghost small" id="t-refresh" type="button">Refresh</button>' +
-          '<span class="stamp">Updated ' + esc(d.read_at) + ' · ' + d.n_live + ' live questions · ' + d.n_subskills + ' sub-skills</span></div>';
+  var h = tbar('Overview', 'Updated ' + esc(d.read_at) + ' · ' + d.n_live + ' live questions · ' + d.n_subskills + ' sub-skills');
   h += '<h2 class="h2">Students</h2>' + tTable([
     ['Name', function (s) { return esc(s.name) + (s.active ? '' : ' <span class="muted">(locked)</span>'); }],
     ['Path', function (s) { return s.path_n ? s.path_n + ' tick' + (s.path_n === 1 ? '' : 's') : '<span class="muted">none</span>'; }, 1],
@@ -42,5 +48,100 @@ function renderTeacher(d) {
   ], d.recent, 'No answers yet.');
   $('#t-main').innerHTML = h;
 }
-$('#t-main').addEventListener('click', function (ev) { if (ev.target.closest('#t-refresh')) openTeacher(true); });
+
+/* ---------------- Assign path ---------------- */
+function renderPath(d) {
+  T.path = d;
+  if (!T.student || !d.paths[T.student]) T.student = d.students.length ? d.students[0].code : '';
+  var on = {}; (d.paths[T.student] || []).forEach(function (u) { on[u] = 1; });
+  var h = tbar('Assign path', 'Updated ' + esc(d.read_at));
+  h += '<div class="pills">' + d.students.map(function (s) { return '<button type="button" class="pill' + (s.code === T.student ? ' on' : '') + '" data-stu="' + esc(s.code) + '">' + esc(s.name) + ' <span class="muted">' + (d.paths[s.code] || []).length + '</span></button>'; }).join('') + '</div>';
+  h += '<div class="tree" id="t-tree">' + d.tree.map(function (t) {
+    return '<h2 class="h2" style="margin-top:18px">' + esc(t.name) + '</h2>' + t.skills.map(function (k) {
+      var n = k.subs.filter(function (u) { return on[u.id]; }).length;
+      return '<div class="tk"><input type="checkbox" data-skill="' + esc(k.id) + '"' + (n === k.subs.length ? ' checked' : '') + '> ' + esc(k.name) + ' <span class="muted" data-cnt="' + esc(k.id) + '">' + n + '/' + k.subs.length + '</span></div>' +
+        k.subs.map(function (u) { return '<label><input type="checkbox" data-sub="' + esc(u.id) + '" data-of="' + esc(k.id) + '"' + (on[u.id] ? ' checked' : '') + '> ' + esc(u.name) + ' <span class="muted">' + esc(u.id) + ' · ' + u.n_live + ' live</span></label>'; }).join('');
+    }).join('');
+  }).join('') + '</div>';
+  h += '<div class="actions"><button class="btn big" id="t-save" type="button"' + (T.student ? '' : ' disabled') + '>Save path</button><span class="stamp" id="t-saved"></span></div>';
+  $('#t-main').innerHTML = h;
+  $$('input[data-skill]').forEach(syncSkillBox);
+}
+function syncSkillBox(box) {
+  var k = box.getAttribute('data-skill'), subs = $$('input[data-of="' + k + '"]'), n = subs.filter(function (x) { return x.checked; }).length;
+  box.checked = n === subs.length; box.indeterminate = n > 0 && n < subs.length;
+  var c = $('[data-cnt="' + k + '"]'); if (c) c.textContent = n + '/' + subs.length;
+}
+function savePath() {
+  var ids = $$('input[data-sub]').filter(function (x) { return x.checked; }).map(function (x) { return x.getAttribute('data-sub'); });
+  var b = $('#t-save'); b.disabled = true; $('#t-saved').textContent = 'Saving…';
+  API.teacherSetPath(S.teacher, T.student, ids).then(function (r) {
+    T.path.paths[T.student] = r.path; b.disabled = false;
+    $('#t-saved').textContent = 'Saved · ' + r.path.length + ' sub-skills';
+    var pill = $('.pill.on .muted'); if (pill) pill.textContent = r.path.length;
+  }).catch(function (e) { b.disabled = false; $('#t-saved').textContent = API.msg(e); });
+}
+
+/* ---------------- Status grid ---------------- */
+function cellHtml(c) {
+  if (!c) return '<span class="muted">·</span>';
+  var cls = !c.on ? 'off' : c.solid ? 'so' : c.status === 'practising' ? 'pr' : '';
+  var t = c.solid ? 'Solid' : c.status === 'not started' ? 'Not started' : c.level + ' ' + half(c.steps) + '/' + c.need;
+  var x = []; if (c.wrong2) x.push('✗' + c.wrong2); if (c.hints) x.push('h' + c.hints); if (c.n) x.push(c.n + ' done');
+  return '<span class="cellb ' + cls + '">' + t + (x.length ? '<small>' + x.join(' · ') + '</small>' : '') + '</span>';
+}
+function renderGrid(d) {
+  var h = tbar('Status grid', 'Updated ' + esc(d.read_at));
+  if (!d.students.length) { $('#t-main').innerHTML = h + '<p class="empty">No paths yet.</p>'; return; }
+  h += '<div class="tscroll"><table class="tbl grid"><thead><tr><th>Sub-skill</th>' + d.students.map(function (s) { return '<th class="c">' + esc(s.name) + '</th>'; }).join('') + '</tr></thead><tbody>';
+  var last = '';
+  d.subs.forEach(function (u) {
+    if (u.skill !== last) { last = u.skill; h += '<tr class="sk"><td colspan="' + (d.students.length + 1) + '">' + esc(u.skill) + '</td></tr>'; }
+    h += '<tr><td>' + esc(u.name) + ' <span class="muted" style="font-size:12px">' + esc(u.id) + '</span></td>' + d.students.map(function (s) {
+      var c = d.cells[s.code + '|' + u.id];
+      return '<td class="c">' + (c ? '<button type="button" class="cellbtn" data-cell="' + esc(s.code) + '|' + esc(u.id) + '">' + cellHtml(c) + '</button>' : '<span class="muted">·</span>') + '</td>';
+    }).join('') + '</tr>';
+  });
+  h += '</tbody></table></div><div id="t-panel"></div>';
+  $('#t-main').innerHTML = h;
+}
+function openCell(stu, sub, fresh) {
+  T.cell = [stu, sub];
+  $('#t-panel').innerHTML = '<div class="panel"><div class="spinner"></div></div>';
+  API.teacherCell(S.teacher, stu, sub, fresh).then(renderCell).catch(function (e) { $('#t-panel').innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p>'; });
+}
+function renderCell(d) {
+  var c = d.cell;
+  var h = '<div class="panel"><h3>' + esc(d.student.name) + ' · ' + esc(d.sub.name) + '</h3><div class="tbar">' + cellHtml(c) +
+          ['E', 'M', 'H', 'SOLID'].map(function (L) { return '<button type="button" class="btn ghost small" data-set="' + L + '">Set ' + (L === 'SOLID' ? 'Solid' : L) + '</button>'; }).join('') +
+          '<span class="stamp">' + esc((d.history || []).join(' · ')) + '</span></div>';
+  h += tTable([
+    ['When', function (r) { return esc(r.when); }], ['Question', function (r) { return esc(r.qid) + ' <span class="muted">' + esc(r.difficulty) + '</span>'; }],
+    ['Level', function (r) { return esc(r.level); }],
+    ['Result', function (r) { return '<span class="res-' + esc(r.result) + '">' + esc(RES_TEXT[r.result] || r.result) + '</span>'; }],
+    ['Answers', function (r) { return r.answers.map(function (a) { return '<span class="' + (a.ok ? 'ok-t' : 'no-t') + '">' + (a.ok ? '✓ ' : '✗ ') + esc(a.a) + '</span>' + (a.mt ? ' <span class="muted">' + esc(a.mt) + '</span>' : ''); }).join(' · '); }],
+    ['Hint', function (r) { return r.hint ? 'Yes' : ''; }],
+    ['Time', function (r) { return r.time ? r.time + ' s' + (r.pace === 'slow' ? ' <span class="muted">slow</span>' : '') : ''; }, 1],
+    ['Step', function (r) { return r.step === '' ? '' : r.step + (r.counted === 'No' ? ' <span class="muted">(not counted)</span>' : ''); }, 1],
+    ['Away', function (r) { return r.away ? r.away + ' s' : ''; }, 1]
+  ], d.attempts, 'No answers yet.');
+  $('#t-panel').innerHTML = h + '</div>';
+}
+
+$('#t-main').addEventListener('click', function (ev) {
+  if (ev.target.closest('#t-refresh')) { openTeacher(true); if (T.tab === 'grid' && T.cell) setTimeout(function () { if ($('#t-panel')) openCell(T.cell[0], T.cell[1], true); }, 50); return; }
+  var tb = ev.target.closest('[data-tab]'); if (tb) { T.tab = tb.getAttribute('data-tab'); T.cell = null; $('#t-main').innerHTML = tabsBar() + '<div class="spinner"></div>'; openTeacher(false); return; }
+  var st = ev.target.closest('[data-stu]'); if (st) { T.student = st.getAttribute('data-stu'); renderPath(T.path); return; }
+  if (ev.target.closest('#t-save')) { savePath(); return; }
+  var cl = ev.target.closest('[data-cell]'); if (cl) { var p = cl.getAttribute('data-cell').split('|'); openCell(p[0], p[1], false); return; }
+  var set = ev.target.closest('[data-set]');
+  if (set && T.cell) { set.disabled = true; API.teacherSetLevel(S.teacher, T.cell[0], T.cell[1], set.getAttribute('data-set')).then(function (d) { return API.teacherGrid(S.teacher, true).then(function (g) { renderGrid(g); renderCell(d); }); }).catch(function (e) { set.disabled = false; alertLine(API.msg(e)); }); return; }
+});
+$('#t-main').addEventListener('change', function (ev) {
+  var t = ev.target;
+  if (t.matches('input[data-skill]')) { $$('input[data-of="' + t.getAttribute('data-skill') + '"]').forEach(function (x) { x.checked = t.checked; }); syncSkillBox(t); }
+  else if (t.matches('input[data-sub]')) { var k = $('input[data-skill="' + t.getAttribute('data-of') + '"]'); if (k) syncSkillBox(k); }
+  if ($('#t-saved')) $('#t-saved').textContent = 'Not saved';
+});
+function alertLine(m) { var p = $('#t-panel'); if (p) p.insertAdjacentHTML('afterbegin', '<p class="err">' + esc(m) + '</p>'); }
 </script>

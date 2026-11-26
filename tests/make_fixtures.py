@@ -19,6 +19,12 @@ qs = [
          wrong=[{"value": "8.66", "mistake_type": "wrong_ratio"}]),
     item("FX-003", "num", "TRIG.RT.ANGLE", "M", "<p>Made-up: opposite 3 cm, adjacent 4 cm. Find the angle to 1 d.p.</p>", "36.9", "1dp", "°",
          wrong=[{"value": "53.1", "mistake_type": "ratio_upside_down"}]),
+    item("FX-005", "mcq", "TRIG.RT.LABEL", "M", "<p>Made-up M: which side is adjacent to angle \\(X\\)?</p>", "A",
+         choices=[{"label": "A", "html": "\\(XZ\\)", "mistake_type": ""}, {"label": "B", "html": "\\(YZ\\)", "mistake_type": "opp_adj_swapped"}]),
+    item("FX-006", "mcq", "TRIG.RT.LABEL", "H", "<p>Made-up H: which side is the hypotenuse?</p>", "C",
+         choices=[{"label": "A", "html": "\\(XZ\\)", "mistake_type": ""}, {"label": "B", "html": "\\(YZ\\)", "mistake_type": ""}, {"label": "C", "html": "\\(XY\\)", "mistake_type": ""}]),
+    item("FX-007", "mcq", "TRIG.RT.LABEL", "E", "<p>Made-up E2: right angle at \\(C\\). Opposite angle \\(B\\)?</p>", "A",
+         choices=[{"label": "A", "html": "\\(AC\\)", "mistake_type": ""}, {"label": "B", "html": "\\(BC\\)", "mistake_type": "opp_adj_swapped"}]),
     item("FX-004", "num", "TRIG.RT.SIDE_DEN", "E", "<p>Made-up draft item (hint not reviewed).</p>", "7", "exact", "cm", hint_status="draft"),
 ]
 out = os.path.join(os.path.dirname(__file__), 'fixtures', 'library', 'questions', 'FX1.json')

@@ -14,7 +14,7 @@ var TAB = {
   STUDENTS: 'Students', CLASSES: 'Classes',
   SKILLS: 'Skills', PATHS: 'Paths',
   QUESTIONS: 'Questions', BATCHES: 'Batches', ITEM_OVERRIDES: 'Item_Overrides', TIME_NORMS: 'Time_Norms',
-  ATTEMPTS: 'Attempts', TRIES: 'Tries', HINTS: 'Hints', REVIEW: 'Review', SKILL_STATUS: 'Skill_Status'
+  ATTEMPTS: 'Attempts', TRIES: 'Tries', HINTS: 'Hints', REVIEW: 'Review', SKILL_STATUS: 'Skill_Status', LEVEL_OVERRIDES: 'Level_Overrides'
 };
 
 /* ---------------- spreadsheet ---------------- */
@@ -36,7 +36,7 @@ function sheet_(name) {
 var _tables = {}, _readMode = 'fresh', TAB_CACHE_SEC = 900, TAB_CHUNK = 90000, EPOCH_KEY_ = 'msbv__epoch';
 var _forceFresh = false;
 var PRELOAD_TABS_ = [TAB.SETTINGS, TAB.STUDENTS, TAB.CLASSES, TAB.SKILLS, TAB.PATHS, TAB.QUESTIONS, TAB.BATCHES, TAB.ITEM_OVERRIDES,
-                     TAB.TIME_NORMS, TAB.ATTEMPTS, TAB.TRIES, TAB.HINTS, TAB.REVIEW];
+                     TAB.TIME_NORMS, TAB.ATTEMPTS, TAB.TRIES, TAB.HINTS, TAB.REVIEW, TAB.SKILL_STATUS, TAB.LEVEL_OVERRIDES];
 var REF_TABS_ = [TAB.SETTINGS, TAB.SKILLS, TAB.QUESTIONS, TAB.BATCHES, TAB.ITEM_OVERRIDES, TAB.TIME_NORMS];
 var _pre = null;
 /** Read-only call: use snapshots (no Sheet open). */

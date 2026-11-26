@@ -11,8 +11,8 @@ var SETTING_MEANINGS_ = {
   right_slow_credit: 'Step credit: right on the 1st try but slow.',
   right_try2_credit: 'Step credit: right on the 2nd try (0 = stay).',
   wrong_credit: 'Step credit: wrong twice (0 = stay; never moves down).',
-  steps_to_move_up: 'Steps needed at a level (E or M) to move up one level (used from the next version).',
-  steps_to_solid: 'Steps needed at H for the sub-skill to be "solid" (used from the next version).',
+  steps_to_move_up: 'Steps needed at a level (E or M) to move up one level.',
+  steps_to_solid: 'Steps needed at H for the sub-skill to be "Solid".',
   start_level: 'Level a new sub-skill starts at (E / M / H).',
   hint_counts: 'No = a hint never changes the step (every hint is still logged in Hints).',
   fallback_target_sec: 'Target seconds when Time_Norms has no row for a question.',
@@ -20,6 +20,9 @@ var SETTING_MEANINGS_ = {
   round_length: 'Default rounding for lengths in template questions (the question always states it).',
   round_angle: 'Default rounding for angles in template questions.',
   review_after: 'When a question goes to the review list.',
+  away_min_sec: 'Leaving the window shorter than this is not logged.',
+  away_flag_sec: 'Leaving the window at least this long is shown to the teacher (students are never told).',
+  ms_window_days: 'My skills: first-try % counts the answers of the last n days.',
   code_version: 'Code version the Sheet was last updated for.'
 };
 
@@ -30,7 +33,8 @@ var TAB_TEXT_ = [
   ['Classes', 'One row per class (optional for the pilot).'],
   ['Skills', 'The skill map: topic → skill → sub-skill (written from the skill map on each deploy). Set active = No to hide a sub-skill.'],
   ['Paths', 'One row per tick: student_code + target_type (skill / subskill) + target_id (an ID from Skills). This is what the student practises.'],
-  ['Skill_Status', 'Per student × sub-skill summary (level, steps, status). Filled from the next version.'],
+  ['Skill_Status', 'Per student × sub-skill summary (level, steps, status, position 0–9 on the My skills ladder, history). Rebuilt after every answer from Attempts + Level_Overrides.'],
+  ['Level_Overrides', 'Teacher changes of a level (E / M / H / solid) for one student × sub-skill. The latest wins from its time on.'],
   ['Attempts', 'One row per question a student opened. result: right_1 / right_2 / wrong_2. step_credit = pilot progression.'],
   ['Tries', 'One row per try (answer, right or wrong, mistake type of the chosen wrong answer, seconds).'],
   ['Hints', 'One row per press of the Hint button.'],
