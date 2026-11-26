@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publish site/ (the nice-link page; copied from SAT Math Lib) to the gh-pages branch → https://minhtranlab.github.io/math/
+# Publish site/ (the nice-link page; copied from SAT Math Lib) to the gh-pages branch → https://minhtranlab.github.io/Math/
 # Only site/ goes there (no code, no data). Run from the repo root after site/ changed on main.
 set -euo pipefail
 ROOT=$(git rev-parse --show-toplevel); cd "$ROOT"

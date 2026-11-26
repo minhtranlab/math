@@ -15,7 +15,7 @@ code link (first commit = the copy; second = the cut + MSB structure). Spec: `02
 | What | Where |
 |---|---|
 | Web app | Apps Script bound to the Sheet "MSB – Data" (`SHEET_ID` in `src/Code.gs`, My Drive › 📚 Academics › Math Skill Bank). Script ID → `.clasp.json`, web-app deployment → `.deployment` (both filled once the script exists). |
-| Nice link | https://minhtranlab.github.io/math/ (`site/`: only a full-screen frame of the app; `noindex, nofollow`; published to `gh-pages` by `tools/publish_site.sh`) |
+| Nice link | https://minhtranlab.github.io/Math/ — capital M: the lowercase /math/ is the "Math illustrations" folder of the user site minhtranlab.github.io (`site/`: only a full-screen frame of the app; `noindex, nofollow`; published to `gh-pages` by `tools/publish_site.sh`) |
 | Question library (private) | Drive "MSB - Library" (`LIBRARY_FOLDER_ID`): `questions/<BATCH>.json` (schema `msb.q/0.1`, spec §7) |
 | Skill map | generated `src/Skills.gs` (IDs + names + prerequisites only) ← `python3 tools/build_skills.py "<project>/skillmap/trigonometry.json"` |
 
