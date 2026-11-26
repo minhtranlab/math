@@ -41,6 +41,7 @@ document.addEventListener('click', function (ev) {
 
 /* ---------------- home ---------------- */
 function goHome() {
+  leaveClass();
   if (!S.code) { show('scr-login'); return; }
   location.hash = 'home';
   show('scr-home'); $('#home-list').innerHTML = '<div class="spinner"></div>';
@@ -68,6 +69,8 @@ function renderHome(h) {
   $('#home-name').textContent = S.name;
   $('#home-hello').textContent = 'Hi ' + (S.name.split(' ')[0] || '') + '!';
   var out = '';
+  if (h.class_open) out += '<div class="card cls"><div><p class="eyebrow">Class</p><h3>' + esc(h.class_open.title) + '</h3></div>' +
+                           '<button class="btn big" type="button" data-join="' + esc(h.class_open.session_id) + '" data-title="' + esc(h.class_open.title) + '">Join class</button></div><div style="height:14px"></div>';
   if (h.path.length) {
     var nSolid = h.path.filter(function (p) { return p.solid; }).length;
     out += '<div class="card"><div><p class="eyebrow">My path · ' + nSolid + ' of ' + h.path.length + ' solid</p>' +
@@ -121,6 +124,7 @@ $('#ms-list').addEventListener('click', function (ev) {
   S.scope = { subskill: b.getAttribute('data-id') }; openQuestion(null);
 });
 $('#home-list').addEventListener('click', function (ev) {
+  var j = ev.target.closest('[data-join]'); if (j) { joinClass(j.getAttribute('data-join'), j.getAttribute('data-title')); return; }
   var b = ev.target.closest('[data-start]'); if (!b) return;
   var k = b.getAttribute('data-start');
   S.scope = k === 'sub' ? { subskill: b.getAttribute('data-id') } : k === 'review' ? { review: true } : {};
@@ -198,7 +202,7 @@ function check() {
   if (ok !== null) feedback(ok, tryNo >= max, ans, null);           // instant: the server's own rule, in the browser
   $('#q-sync').textContent = 'Saving…';
   API.submitTry(S.code, S.cur.attempt_id, ans, sec, ok).then(function (r) {
-    if (!r.ok) { $('#q-sync').textContent = ''; if (r.finished) finish(null); else { S.busy = false; S.cur.tries.pop(); $('#q-fb').innerHTML = '<div class="fb no">' + esc(r.msg || 'Not saved.') + '</div>'; } return; }
+    if (!r.ok) { $('#q-sync').textContent = ''; if (r.paused) { S.busy = false; S.cur.tries.pop(); $('#q-fb').innerHTML = '<div class="fb no">' + esc(r.msg) + '</div>'; setPaused(true); return; } if (r.finished) finish(null); else { S.busy = false; S.cur.tries.pop(); $('#q-fb').innerHTML = '<div class="fb no">' + esc(r.msg || 'Not saved.') + '</div>'; } return; }
     $('#q-sync').textContent = 'Saved ✓';
     if (ok === null || r.mismatch) feedback(r.correct, r.finished, ans, r);   // the server is the judge
     else if (r.finished && !r.correct) feedback(false, true, ans, r);
@@ -241,14 +245,75 @@ function finish() {
   S.busy = true;
   $$('.ch').forEach(function (b) { b.disabled = true; });
   var inp = $('#q-num'); if (inp) inp.disabled = true;
-  var a = $('#q-actions');
-  if (!$('#q-next')) a.innerHTML = '<button class="btn big" id="q-next" type="button">Next question</button><button class="btn ghost" type="button" data-go="home">Home</button><span class="sync" id="q-sync">' + ($('#q-sync') ? $('#q-sync').textContent : '') + '</span>';
+  var a = $('#q-actions'), sync = $('#q-sync') ? $('#q-sync').textContent : '';
+  if (S.cls) { if (!$('#q-wait')) a.innerHTML = '<span class="muted" id="q-wait">Wait for your teacher\'s next question.</span><span class="sync" id="q-sync">' + sync + '</span>'; return; }
+  if (!$('#q-next')) a.innerHTML = '<button class="btn big" id="q-next" type="button">Next question</button><button class="btn ghost" type="button" data-go="home">Home</button><span class="sync" id="q-sync">' + sync + '</span>';
 }
 function hint() {
   var b = $('#q-hint'); if (!b || b.disabled) return;
   b.disabled = true;
   API.useHint(S.code, S.cur.attempt_id).then(function (r) { if (r.ok) showHint(r.hint_html); else b.disabled = false; })
     .catch(function (e) { b.disabled = false; $('#q-fb').innerHTML = '<div class="fb no">' + esc(API.msg(e)) + '</div>'; });
+}
+
+/* ---------------- Class mode (#9): the teacher pushes questions; this screen polls every few seconds ---------------- */
+function joinClass(sid, title) {
+  leaveClass();
+  S.cls = { sid: sid, seen: {}, timer: 0, poll: 3 }; S.cur = null; S.scope = {};
+  location.hash = 'q'; show('scr-q');
+  $('#q-cls').classList.remove('hidden'); $('#q-cls-title').textContent = 'Class · ' + (title || ''); $('#q-cls-msgs').innerHTML = '';
+  $('#q-sub').textContent = ''; $('#q-cnt').textContent = '';
+  $('#q-card').innerHTML = '<p class="wait">Waiting for your teacher…</p>';
+  classTick();
+}
+function leaveClass() {
+  if (S.cls && S.cls.timer) clearTimeout(S.cls.timer);
+  S.cls = null; setPaused(false);
+  var b = $('#q-cls'); if (b) b.classList.add('hidden');
+}
+function setPaused(on) { var c = $('#q-pause'); if (c) c.classList.toggle('hidden', !on); }
+function typedNow() { if (!S.cur) return ''; if (S.cur.q.type === 'mcq') return S.sel || ''; var i = $('#q-num'); return i ? i.value : ''; }
+function classTick() {
+  if (!S.cls) return;
+  var me = S.cls;
+  API.classPoll(S.code, me.sid, { attempt_id: S.cur ? S.cur.attempt_id : '', typed: typedNow() }).then(function (r) {
+    if (S.cls !== me) return;
+    if (r.ended) { showClassSummary(r.summary); leaveClassKeepScreen(); return; }
+    me.poll = r.poll_sec || 3;
+    (r.messages || []).forEach(function (m) { if (me.seen[m.id]) return; me.seen[m.id] = 1; $('#q-cls-msgs').insertAdjacentHTML('beforeend', '<span class="msg">' + esc(m.text) + '</span>'); });
+    setPaused(!!r.paused);
+    if (r.question) { renderQuestion(r.question); $('#q-cnt').textContent = ''; }
+    else if (r.waiting && !S.cur) $('#q-card').innerHTML = '<p class="wait">Waiting for your teacher…</p>';
+    if (S.cur && r.attempt_id === S.cur.attempt_id) {
+      S.cur.max_tries = r.max_tries;
+      if (r.status === 'done' && r.result === 'revealed' && !$('#q-wait')) {
+        $('#q-fb').innerHTML = '<div class="fb ans">Answer: ' + answerHtml({ answer: r.answer }) + '</div>';
+        if (S.cur.q.type === 'mcq' && S.spec) { var rb = $('.ch[data-l="' + S.spec.k[0] + '"]'); if (rb) rb.classList.add('right'); }
+        typeset($('#q-fb')); finish();
+      }
+    }
+  }).catch(function () {}).then(function () { if (S.cls === me) me.timer = setTimeout(classTick, (me.poll || 3) * 1000); });
+}
+function leaveClassKeepScreen() { if (S.cls && S.cls.timer) clearTimeout(S.cls.timer); S.cls = null; setPaused(false); }
+function showClassSummary(sm) {
+  S.cur = null;
+  $('#q-sub').textContent = ''; $('#q-cnt').textContent = '';
+  var me = sm.students[0] || { n: 0, right1: 0, tries: 0 };
+  $('#q-card').innerHTML = '<p class="eyebrow">Class session · ' + esc(sm.title) + '</p>' + resultTable(sm, false) +
+    '<div class="actions"><button class="btn" type="button" data-go="home">Home</button></div>';
+}
+/** The session result (lesson 10: ONE result view; Class session = this header + the same table; #8 reuses it). */
+function resultTable(sm, teacher) {
+  var h = '<div class="tscroll"><table class="tbl"><thead><tr>' + (teacher ? '<th>Student</th>' : '') + '<th class="r">Questions</th><th class="r">Right 1st try</th><th class="r">Tries</th><th class="r">Hints</th><th class="r">Messages</th><th class="r">Answer shown</th><th class="r">Steps</th></tr></thead><tbody>' +
+    sm.students.map(function (s) { return '<tr>' + (teacher ? '<td>' + esc(s.name) + '</td>' : '') + '<td class="r">' + s.n + '</td><td class="r">' + s.right1 + '</td><td class="r">' + s.tries + '</td><td class="r">' + s.hints + '</td><td class="r">' + s.messages + '</td><td class="r">' + s.reveals + '</td><td class="r">' + half(s.steps) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  if (sm.questions && sm.questions.length) {
+    var RT = { right_1: 'Right 1st try', right_2: 'Right later', wrong_2: 'Wrong', revealed: 'Answer shown', open: 'Not answered' };
+    h += '<h2 class="h2">Questions</h2><div class="tscroll"><table class="tbl"><thead><tr>' + (teacher ? '<th>Student</th>' : '') + '<th>Question</th><th>Sub-skill</th><th>Result</th><th class="r">Tries</th><th>Hint</th><th class="r">Step</th></tr></thead><tbody>' +
+      sm.questions.filter(function (q) { return teacher || true; }).map(function (q) {
+        return '<tr>' + (teacher ? '<td>' + esc(q.student) + '</td>' : '') + '<td>' + esc(q.qid) + ' <span class="muted">' + esc(q.difficulty) + '</span></td><td>' + esc(q.subskill) + '</td><td><span class="res-' + esc(q.result) + '">' + esc(RT[q.result] || q.result) + '</span>' + (q.helped ? ' <span class="muted">helped</span>' : '') + '</td><td class="r">' + q.tries + '</td><td>' + (q.hint ? 'Yes' : '') + '</td><td class="r">' + half(q.step) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+  return h;
 }
 
 /* ---------------- back button + reload ---------------- */

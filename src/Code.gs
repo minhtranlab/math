@@ -10,7 +10,9 @@
  *         Setup.gs (tabs + columns) · Update.gs (per-deploy Sheet update) · SheetText.gs (README / Dictionary / meanings)
  *         Skills.gs (GENERATED skill map) · Index/Styles/Api/Client/TeacherPage.html (browser; Api.html = the api.js wrapper)
  * Browser → server calls (only these): login · homeData · mySkills · nextQuestion · submitTry · useHint · reviewList ·
- *   teacherHome · teacherPathData · teacherSetPath · teacherGrid · teacherCell · teacherSetLevel
+ *   teacherHome · teacherPathData · teacherSetPath · teacherGrid · teacherCell · teacherSetLevel ·
+ *   Class mode: classPoll (student) · classStart · classEnd · classLive · classQueueEdit · classPush · classControl ·
+ *   classTeacherQuestion · classSummary (teacher)
  * The answer key never leaves the server except the ONE open question, encoded (Grade.gs encKey_); the server re-grades
  * every try (submitTry) and that is what is stored.
  * Source of truth: github.com/minhtranlab/math (PUBLIC: code only). Question data + keys live in the private Drive folder.
@@ -19,7 +21,7 @@
 var SHEET_ID = '1EPtPXzl8hsxJU1IVe5V7ud_SrlyB4GHqdb_cy2G-ufM';          // "MSB – Data" (My Drive › 📚 Academics › Math Skill Bank)
 var LIBRARY_FOLDER_ID = '1c9Mz7_tKbQ5-qZOSu2nxNR8TnAhi0-P3';             // "MSB - Library" (private): questions/<BATCH>.json
 var APP_NAME = 'Math Skill Bank';
-var APP_VERSION = 'v0.2.0 (2026-11-26, #7 path practice: levels E→M→H→Solid, assign path, status grid, My skills)';
+var APP_VERSION = 'v0.3.0 (2026-11-26, #9 Class mode: live session, queue, pause, message, reveal, group push, summary)';
 var APP_BUILD = 'dev';  // replaced by the GitHub Action with the commit id → the Sheet update (Update.gs) runs once per deploy
 
 /* ============================== web app ============================== */
@@ -63,7 +65,9 @@ var SETTINGS_DEFAULTS_ = {
   round_length: '3sf', round_angle: '1dp',    // default rounding of template items (the question always says it)
   review_after: 'wrong_twice',
   away_min_sec: 2, away_flag_sec: 20,   // leaving the window: logged silently from 2 s; shown to the teacher from 20 s (SML #16, lesson 13)
-  ms_window_days: 60                    // My skills: first-try % over the last 60 days
+  ms_window_days: 60,                   // My skills: first-try % over the last 60 days
+  class_max_tries: 3,                   // Class mode: tries before the answer is shown (teacher can change it live, BRAIN #20)
+  class_poll_sec: 3                     // Class mode: student + teacher screens refresh every n seconds
 };
 var _settings = null;
 function getSettings_() {

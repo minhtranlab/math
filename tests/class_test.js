@@ -1,0 +1,116 @@
+// #9 Class mode (BRAIN #20): session for two students, queue edits, push to all / to one, live typing via cache (no Sheet
+// write), pause blocks tries, message + reveal logged, tries changeable live (3 by default), mastery: only the 1st try and
+// only if the teacher did not help before it, summary, ended session. Apps Script mock + made-up FX1.
+const { makeGas, TEACHER } = require('./server');
+let F = 0, P = 0;
+function check(c, m) { if (c) { P++; console.log('  ✓ ' + m); } else { F++; console.log('  ✗ FAIL: ' + m); } }
+const g = makeGas();
+const call = (fn, ...a) => { g.fresh(); return g.call(fn, a); };
+const T = n => g.table(n);
+const KEY = { 'FX-001': 'B', 'FX-005': 'A', 'FX-006': 'C', 'FX-007': 'A', 'FX-002': '5.00', 'FX-003': '36.9' };
+const fast = { sec: 15, answer_sec: 10 };
+
+console.log('start + queue');
+check(T('Class_Sessions').length === 0 && T('Class_Queue').length === 0 && T('Class_Events').length === 0, '3 class tabs created by the update, empty');
+let e = ''; try { call('classStart', 'FX-T01', ['FX-T01'], 'x'); } catch (x) { e = x.message; } check(/^LOGIN/.test(e), 'a student code cannot start a class');
+let L = call('classStart', TEACHER, ['FX-T01', 'FX-T03'], 'Trig group');
+const SID = L.session_id;
+check(L.students.length === 2 && L.max_tries === 3 && L.students.every(s => s.state === 'waiting'), 'session for 2 students, 3 tries by default, both waiting');
+check(call('homeData', 'FX-T01').class_open.session_id === SID && call('homeData', 'FX-T03').class_open.title === 'Trig group', 'home shows "Join class" for both students');
+let p1 = call('classPoll', 'FX-T01', SID, {});
+check(p1.waiting && !p1.question, 'student poll before any push: waiting');
+L = call('classQueueEdit', TEACHER, SID, 'add', { subskill: 'TRIG.RT.LABEL', difficulty: 'E' });
+L = call('classQueueEdit', TEACHER, SID, 'add', { subskill: 'TRIG.RT.LABEL', difficulty: 'E' });
+L = call('classQueueEdit', TEACHER, SID, 'add', { subskill: 'TRIG.RT.ANGLE', difficulty: 'M' });
+check(L.queue.length === 3 && L.queue[0].qid !== L.queue[1].qid && L.queue[2].qid === 'FX-003', 'add 3 items (2 different LABEL E + ANGLE M)');
+L = call('classQueueEdit', TEACHER, SID, 'add', { subskill: 'TRIG.RT.LABEL', difficulty: 'E' });
+check(L.queue.length === 3 && /No other question/.test(L.msg), 'no third LABEL E → message, queue unchanged');
+const first = L.queue[0].item_id, q2 = L.queue[1].qid;
+L = call('classQueueEdit', TEACHER, SID, 'down', { item_id: first });
+check(L.queue[0].qid === q2, 'move down: order changed');
+L = call('classQueueEdit', TEACHER, SID, 'level', { item_id: L.queue[0].item_id, difficulty: 'H' });
+check(L.queue[0].qid === 'FX-006' && L.queue[0].difficulty === 'H', 'change E → H: same sub-skill, Hard item FX-006');
+L = call('classQueueEdit', TEACHER, SID, 'swap', { item_id: L.queue[0].item_id });
+check(/No other H/.test(L.msg), 'swap with no other H item → message');
+L = call('classQueueEdit', TEACHER, SID, 'level', { item_id: L.queue[0].item_id, difficulty: 'E' });
+check(L.queue[0].difficulty === 'E', 'change back to E');
+
+console.log('push to all (same question) + live typing');
+L = call('classPush', TEACHER, SID, '*');
+const QA = L.students[0].qid;
+check(L.students.every(s => s.qid === QA && s.state === 'working') && T('Attempts').filter(a => a.kind === 'class').length === 2, 'push to all: both get ' + QA + ' (2 Attempts rows, kind class)');
+check(L.queue[0].status === 'queued' && L.queue.filter(q => q.status === 'pushed').length === 1, 'queue: first item marked pushed');
+p1 = call('classPoll', 'FX-T01', SID, {});
+check(p1.question && p1.question.q.qid === QA && p1.question.max_tries === 3 && !/"key"|accepted|mistake_type/.test(JSON.stringify(p1)), 'student poll: the question (3 tries, key only encoded)');
+const A1 = p1.attempt_id;
+const sheetWrites = T('Class_Events').length + T('Attempts').length;
+p1 = call('classPoll', 'FX-T01', SID, { attempt_id: A1, typed: 'A' });
+check(!p1.question && T('Class_Events').length + T('Attempts').length === sheetWrites, 'poll with the same question: no question resent, no Sheet write');
+L = call('classLive', TEACHER, SID);
+check(L.students.find(s => s.code === 'FX-T01').typed === 'A', 'teacher live panel shows what FX-T01 chose ("A") from the cache');
+
+console.log('pause / message / tries / mastery');
+L = call('classControl', TEACHER, SID, 'FX-T03', 'pause');
+const p3 = call('classPoll', 'FX-T03', SID, {});
+check(p3.paused && !call('classPoll', 'FX-T01', SID, { attempt_id: A1 }).paused, 'pause one student: FX-T03 paused, FX-T01 not');
+const A3 = p3.attempt_id;
+let r = call('submitTry', 'FX-T03', A3, KEY[QA], fast, true);
+check(!r.ok && r.paused && T('Tries').length === 0, 'a try while paused is refused by the server');
+call('classControl', TEACHER, SID, 'FX-T03', 'continue');
+check(!call('classPoll', 'FX-T03', SID, { attempt_id: A3 }).paused, 'Continue → not paused');
+r = call('submitTry', 'FX-T03', A3, KEY[QA], fast, true);
+check(r.correct && r.result === 'right_1' && r.step_credit === 0 && T('Attempts').find(a => a.attempt_id === A3).helped === 'Yes', 'right 1st try but paused before it → helped = Yes → step 0');
+r = call('submitTry', 'FX-T01', A1, 'C', fast, false);
+check(!r.finished && r.tries_left === 2, 'FX-T01 wrong → 2 tries left (3 in class)');
+call('classControl', TEACHER, SID, 'FX-T01', 'message', 'Look at the right angle first');
+const m = call('classPoll', 'FX-T01', SID, { attempt_id: A1 }).messages;
+check(m.length === 1 && /right angle/.test(m[0].text), 'message appears on the student screen at once');
+check(T('Attempts').find(a => a.attempt_id === A1).helped === 'No', 'a message AFTER the 1st try does not mark the question helped');
+r = call('submitTry', 'FX-T01', A1, 'C', fast, false);
+check(!r.finished && r.tries_left === 1, 'second wrong → 1 try left');
+call('classControl', TEACHER, SID, '*', 'tries', 2);
+r = call('submitTry', 'FX-T01', A1, 'C', fast, false);
+check(!r.ok && r.finished, 'tries set to 2 live → a 3rd try is refused');
+L = call('classControl', TEACHER, SID, '*', 'tries', 3);
+check(L.max_tries === 3, 'tries back to 3');
+r = call('submitTry', 'FX-T01', A1, KEY[QA], fast, true);
+check(r.correct && r.result === 'right_2' && r.step_credit === 0, 'right on the 3rd try → right later, step 0 (only the 1st try counts)');
+
+console.log('push to one + clean 1st try + reveal');
+L = call('classPush', TEACHER, SID, 'FX-T01');
+const QB = L.students.find(s => s.code === 'FX-T01').qid;
+check(QB !== QA && L.students.find(s => s.code === 'FX-T03').qid === QA, 'push to one: only FX-T01 gets the next question (' + QB + ')');
+const pb = call('classPoll', 'FX-T01', SID, { attempt_id: A1 });
+r = call('submitTry', 'FX-T01', pb.attempt_id, KEY[QB], fast, true);
+const lvl1 = T('Attempts').find(a => a.attempt_id === pb.attempt_id);
+check(r.correct && r.step_credit === 1 && lvl1.counted === 'Yes' && r.progress.steps === 1, 'clean right 1st try in time → step 1 (counted) — path progress moves');
+L = call('classPush', TEACHER, SID, '*');
+const QC = L.students[0].qid, AC = call('classPoll', 'FX-T03', SID, { attempt_id: A3 }).attempt_id;
+call('submitTry', 'FX-T03', AC, '1', fast, false);
+L = call('classControl', TEACHER, SID, 'FX-T03', 'reveal');
+const pr = call('classPoll', 'FX-T03', SID, { attempt_id: AC });
+check(pr.status === 'done' && pr.result === 'revealed' && pr.answer && pr.answer.html === '36.9°', 'Show answer now → student sees "36.9°", attempt revealed');
+check(T('Review').some(x => x.student_code === 'FX-T03' && x.reason === 'revealed'), 'revealed after a wrong try → review list');
+const ac = T('Attempts').find(a => a.attempt_id === AC);
+check(ac.step_credit === 0 && ac.helped === 'Yes', 'revealed: step 0');
+const tq = call('classTeacherQuestion', TEACHER, QC);
+check(tq.answer.html === '36.9°' && tq.q.qid === QC, 'Open on my screen: question + correct answer for the teacher');
+e = ''; try { call('classTeacherQuestion', 'FX-T01', QC); } catch (x) { e = x.message; } check(/^LOGIN/.test(e), 'students cannot open the teacher view of a question');
+
+console.log('end + summary');
+const evTypes = T('Class_Events').map(x => x.type);
+check(['start', 'push', 'pause', 'continue', 'message', 'tries', 'reveal'].every(t => evTypes.includes(t)), 'every teacher action is logged in Class_Events (' + T('Class_Events').length + ' rows)');
+const S1 = call('classEnd', TEACHER, SID).summary;
+const s1 = S1.students.find(s => s.code === 'FX-T01'), s3 = S1.students.find(s => s.code === 'FX-T03');
+check(S1.status === 'ended' && s1.n === 2 && s1.right1 === 1 && s1.tries === 4 && s1.messages === 1 && s1.steps === 1, 'summary FX-T01: 2 questions, 1 right 1st try, 4 tries, 1 message, 1 step');
+check(s3.n === 2 && s3.right1 === 1 && s3.reveals === 1 && s3.steps === 0, 'summary FX-T03: 2 questions, 1 right 1st try (helped), 1 revealed, 0 steps');
+check(T('Attempts').find(a => a.session_id === SID && a.student_code === 'FX-T01' && a.qid === QC).status === 'skipped', "FX-T01's unanswered question → skipped (no credit)");
+const pe = call('classPoll', 'FX-T01', SID, {});
+check(pe.ended && pe.summary.students.length === 1 && pe.summary.students[0].code === '', 'student poll after the end: own summary only');
+check(!call('homeData', 'FX-T01').class_open, 'home: no "Join class" any more');
+e = ''; try { call('classPush', TEACHER, SID, '*'); } catch (x) { e = x.message; } check(/ended/.test(e), 'no push into an ended session');
+const H = call('classHome', TEACHER, true);
+check(H.sessions.length === 1 && H.open === '' && H.students.length === 2, 'class start screen: 1 past session, none open, 2 active students');
+
+console.log(`\nclass_test: ${P} passed, ${F} failed`);
+process.exit(F ? 1 : 0);

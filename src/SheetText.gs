@@ -23,6 +23,8 @@ var SETTING_MEANINGS_ = {
   away_min_sec: 'Leaving the window shorter than this is not logged.',
   away_flag_sec: 'Leaving the window at least this long is shown to the teacher (students are never told).',
   ms_window_days: 'My skills: first-try % counts the answers of the last n days.',
+  class_max_tries: 'Class mode: tries before the answer is shown (the teacher can change it during a session).',
+  class_poll_sec: 'Class mode: seconds between screen refreshes (student and teacher).',
   code_version: 'Code version the Sheet was last updated for.'
 };
 
@@ -43,6 +45,9 @@ var TAB_TEXT_ = [
   ['Batches', 'One row per question file on Drive. live = Yes switches the whole file on.'],
   ['Item_Overrides', 'Teacher changes to one question (difficulty or status) — the files are never edited by hand.'],
   ['Time_Norms', 'Seconds per difficulty and answer type. slow_above_sec decides "in time" vs "slow".'],
+  ['Class_Sessions', 'One row per class session (students, status open / ended, tries).'],
+  ['Class_Queue', 'Next-questions queue of a class session, in order (status queued / pushed / removed).'],
+  ['Class_Events', 'Everything the teacher did in a class (push, pause, continue, message, reveal, tries, end), per student.'],
   ['Dictionary', 'Every column of every tab and what it means.']
 ];
 

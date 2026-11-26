@@ -51,8 +51,8 @@ function homeData(code) {
   var st = requireStudent_(code);
   var pp = pathProgress_(code), att = attemptsOf_(code).filter(function (a) { return clean_(a.status) === 'done'; });
   var rv = openReview_(code).map(function (r) { return { qid: clean_(r.qid), subskill: subskillName_(clean_(r.subskill)), added: dateStr_(r.added_at) }; });
-  var nx = nextPathSub_(pp.path);
-  return { name: String(st.name || ''), path: pp.path, skills: pp.skills, next: nx, next_name: nx ? subskillName_(nx) : '',
+  var nx = nextPathSub_(pp.path), cl = clOpenFor_(code);
+  return { class_open: cl ? { session_id: clean_(cl.session_id), title: clean_(cl.title) } : null, name: String(st.name || ''), path: pp.path, skills: pp.skills, next: nx, next_name: nx ? subskillName_(nx) : '',
            sample_n: pp.path.length ? 0 : livePool_().length, review: rv, n_done: att.length };
 }
 
@@ -176,7 +176,12 @@ function submitTry(code, attemptId, answer, timeSec, clientSaid) {
   try {
     requireStudent_(code);
     var a = attemptRow_(code, attemptId);
-    var tries = triesOf_(attemptId), max = maxTries_();
+    var tries = triesOf_(attemptId), max = maxTries_(), cls = clean_(a.kind) === 'class' ? clSession_(clean_(a.session_id), false) : null;
+    if (cls) {                                                                 // Class mode (#9): session tries, pause, ended
+      max = clMaxTries_(cls);
+      if (clean_(cls.status) !== 'open') return { ok: false, finished: true, msg: 'This class has ended.' };
+      if (clPaused_(clEvents_(clean_(cls.session_id)), code)) return { ok: false, paused: true, msg: 'Your teacher is going over this question.' };
+    }
     if (clean_(a.status) !== 'open' || tries.length >= max) return { ok: false, finished: true, msg: 'This question is already finished.' };
     answer = String(answer === undefined || answer === null ? '' : answer).trim().slice(0, 40);
     if (!answer) return { ok: false, msg: 'Type an answer first.' };
@@ -195,6 +200,7 @@ function submitTry(code, attemptId, answer, timeSec, clientSaid) {
     var ans1 = tries.length ? Number(tries[0].time_answer_sec === '' || tries[0].time_answer_sec === undefined ? tries[0].time_sec : tries[0].time_answer_sec) || 0 : tm.answer;
     var t1 = ans1, slowAt = slowAbove_(a.difficulty, q.type), result = correct ? (tryNo === 1 ? 'right_1' : 'right_2') : 'wrong_2';
     var slow = t1 > slowAt, credit = stepCredit_(result, slow);
+    if (cls && isYes_(a.helped)) credit = 0;                                   // BRAIN #20: teacher helped before the 1st try → no step
     var track = clean_(a.kind) !== 'sample' && clean_(a.subskill), before = track ? progressOf_(code, clean_(a.subskill)) : null;
     dataUpdate_(TAB.ATTEMPTS, a._row, { status: 'done', finished_at: nowIso_(), n_tries: tryNo, try1_correct: tryNo === 1 && correct ? 'Yes' : 'No',
       correct: correct ? 'Yes' : 'No', result: result, answer_shown: correct ? '' : 'Yes', time_try1_sec: t1,

@@ -1,0 +1,95 @@
+<script>
+/* ===================== MSB — pen (copied from SAT Math Lib go-over pen, satmath@579fdb0 Client.html PEN; cut to one canvas)
+   Teacher tool for "Open on my screen" (Class mode). 4 colours (blue, red, green, yellow highlighter), thin / thick, eraser,
+   undo, clear. iPad (SML #107): Apple Pencil draws at once, a finger scrolls; a finger draws only until a Pencil has been seen
+   on this device — or always / never by the "✋ Finger draws" switch (kept on this device). Cleared on the next question. */
+var PEN = { on: false, color: 'blue', w: 1, tool: 'pen', strokes: [], hist: [], cv: null, host: null, penSeen: false };
+var PEN_C = { blue: '#1f5fd6', red: '#d0263c', green: '#1f8a4c', yellow: 'rgba(245,196,0,0.38)' };
+function penFingerPref() { try { return localStorage.getItem('msb_finger_draws') || ''; } catch (e) { return ''; } }
+function penFingerDraws() { var p = penFingerPref(); return p === 'on' ? true : p === 'off' ? false : !PEN.penSeen; }
+function penFingerSync() {
+  var on = penFingerDraws(), b = document.querySelector('#pen-bar [data-pt="finger"]');
+  if (PEN.host) PEN.host.classList.toggle('finger-scrolls', !on);
+  if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+}
+function penAttach(host) {
+  penDetach(); PEN.host = host; host.classList.add('pen-host');
+  var c = document.createElement('canvas'); c.className = 'pen-cv'; host.appendChild(c); PEN.cv = c; penBind(c); penSize(); penSync();
+}
+function penDetach() { if (PEN.cv && PEN.cv.parentNode) PEN.cv.parentNode.removeChild(PEN.cv); PEN.cv = null; PEN.strokes = []; PEN.hist = []; }
+function penSize() {
+  var c = PEN.cv, h = PEN.host; if (!c || !h) return;
+  var r = window.devicePixelRatio || 1; c.style.display = 'none'; var w = h.clientWidth, ht = Math.max(h.scrollHeight, h.clientHeight); c.style.display = '';
+  if (c._w !== w || c._h !== ht) { c._w = w; c._h = ht; c.style.width = w + 'px'; c.style.height = ht + 'px'; c.width = Math.round(w * r); c.height = Math.round(ht * r); }
+  penDraw();
+}
+function penDraw() {
+  var c = PEN.cv; if (!c || !c._w) return;
+  var r = window.devicePixelRatio || 1, g = c.getContext('2d');
+  g.setTransform(r, 0, 0, r, 0, 0); g.clearRect(0, 0, c._w, c._h);
+  PEN.strokes.forEach(function (s) {
+    var hl = s.c === 'yellow'; g.save(); g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = PEN_C[s.c];
+    g.lineWidth = hl ? (s.w === 2 ? 28 : 16) : (s.w === 2 ? 5 : 2.5);
+    g.beginPath(); g.moveTo(s.pts[0][0], s.pts[0][1]); if (s.pts.length === 1) g.lineTo(s.pts[0][0] + 0.1, s.pts[0][1]);
+    for (var j = 1; j < s.pts.length; j++) g.lineTo(s.pts[j][0], s.pts[j][1]);
+    g.stroke(); g.restore();
+  });
+}
+function penSnap() { PEN.hist.push(JSON.parse(JSON.stringify(PEN.strokes))); if (PEN.hist.length > 60) PEN.hist.shift(); }
+function penBind(c) {
+  var cur = null, at = function (e) { var b = c.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
+  var erase = function (p) {
+    var hit = PEN.strokes.filter(function (s) { return s.pts.some(function (q) { return Math.abs(q[0] - p[0]) < 12 && Math.abs(q[1] - p[1]) < 12; }); });
+    if (!hit.length) return; if (!cur.saved) { penSnap(); cur.saved = true; }
+    PEN.strokes = PEN.strokes.filter(function (s) { return hit.indexOf(s) < 0; }); penDraw();
+  };
+  var stylus = function (e) { var t = e.touches && e.touches[0]; if (PEN.on && t && t.touchType === 'stylus') { e.preventDefault(); if (!PEN.penSeen) { PEN.penSeen = true; penFingerSync(); } } };
+  c.addEventListener('touchstart', stylus, { passive: false }); c.addEventListener('touchmove', stylus, { passive: false });
+  c.addEventListener('pointerdown', function (e) {
+    if (!PEN.on || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (e.pointerType === 'pen' && !PEN.penSeen) { PEN.penSeen = true; penFingerSync(); }
+    if (e.pointerType === 'touch' && !penFingerDraws()) return;
+    e.preventDefault(); penSize();
+    try { var sl = window.getSelection(); if (sl && !sl.isCollapsed) sl.removeAllRanges(); } catch (x) {}
+    try { c.setPointerCapture(e.pointerId); } catch (x) {}
+    var p = at(e);
+    if (PEN.tool === 'eraser') { cur = { erase: true }; erase(p); return; }
+    penSnap(); cur = { c: PEN.color, w: PEN.w, pts: [p] }; PEN.strokes = PEN.strokes.concat([cur]); penDraw();
+  });
+  c.addEventListener('pointermove', function (e) {
+    if (!cur) return; e.preventDefault(); var p = at(e);
+    if (cur.erase) { erase(p); return; }
+    var evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e]; if (!evs.length) evs = [e];
+    evs.forEach(function (x) { cur.pts.push(at(x)); }); penDraw();
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { c.addEventListener(t, function () { cur = null; }); });
+}
+function penSet(on) {
+  PEN.on = !!on;
+  if (PEN.host) PEN.host.classList.toggle('pen-on', PEN.on);
+  var bar = document.getElementById('pen-bar'); if (bar) bar.hidden = !PEN.on;
+  var t = document.getElementById('tq-pen'); if (t) t.classList.toggle('on', PEN.on);
+  if (PEN.on) { penSize(); penFingerSync(); }
+}
+function penSync() {
+  document.querySelectorAll('#pen-bar [data-pc]').forEach(function (b) { b.classList.toggle('on', PEN.tool === 'pen' && b.getAttribute('data-pc') === PEN.color); });
+  document.querySelectorAll('#pen-bar [data-pw]').forEach(function (b) { b.classList.toggle('on', +b.getAttribute('data-pw') === PEN.w); });
+  var er = document.querySelector('#pen-bar [data-pt="eraser"]'); if (er) er.classList.toggle('on', PEN.tool === 'eraser');
+  penFingerSync();
+}
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('#pen-bar button'); if (!b) return;
+  if (b.hasAttribute('data-pc')) { PEN.color = b.getAttribute('data-pc'); PEN.tool = 'pen'; }
+  else if (b.hasAttribute('data-pw')) { PEN.w = +b.getAttribute('data-pw'); PEN.tool = 'pen'; }
+  else {
+    var t = b.getAttribute('data-pt');
+    if (t === 'eraser') PEN.tool = PEN.tool === 'eraser' ? 'pen' : 'eraser';
+    else if (t === 'undo') { if (PEN.hist.length) { PEN.strokes = PEN.hist.pop(); penDraw(); } }
+    else if (t === 'clear') { if (PEN.strokes.length) { penSnap(); PEN.strokes = []; penDraw(); } }
+    else if (t === 'finger') { var nv = penFingerDraws() ? 'off' : 'on'; try { localStorage.setItem('msb_finger_draws', nv); } catch (x) {} }
+    else if (t === 'off') penSet(false);
+  }
+  penSync();
+});
+window.addEventListener('resize', function () { if (PEN.cv) penSize(); });
+</script>

@@ -14,7 +14,7 @@ var TABS_ = [
   [TAB.SKILL_STATUS, ['student_code', 'subskill', 'level', 'steps', 'status', 'n_attempts', 'n_right1', 'n_wrong2', 'n_hints', 'last_at', 'updated_at', 'position', 'history', 'override']],
   [TAB.ATTEMPTS, ['attempt_id', 'student_code', 'kind', 'scope', 'qid', 'subskill', 'skill', 'difficulty', 'started_at', 'finished_at', 'status',
                   'n_tries', 'try1_correct', 'correct', 'result', 'answer_shown', 'hint_used', 'n_hints', 'time_try1_sec', 'time_total_sec',
-                  'slow_above_sec', 'pace', 'step_credit', 'device', 'note', 'level_at_start', 'counted', 'time_answer_sec', 'away_n', 'away_sec']],
+                  'slow_above_sec', 'pace', 'step_credit', 'device', 'note', 'level_at_start', 'counted', 'time_answer_sec', 'away_n', 'away_sec', 'session_id', 'helped']],
   [TAB.TRIES, ['attempt_id', 'student_code', 'qid', 'try_no', 'answer', 'correct', 'mistake_type', 'time_sec', 'client_said', 'at', 'time_answer_sec']],
   [TAB.HINTS, ['attempt_id', 'student_code', 'qid', 'subskill', 'after_tries', 'at']],
   [TAB.REVIEW, ['student_code', 'qid', 'subskill', 'attempt_id', 'reason', 'added_at', 'status', 'cleared_at', 'cleared_by', 'note']],
@@ -24,6 +24,9 @@ var TABS_ = [
   [TAB.ITEM_OVERRIDES, ['qid', 'difficulty', 'status', 'set_by', 'set_at', 'note']],
   [TAB.TIME_NORMS, ['difficulty', 'qtype', 'target_sec', 'slow_above_sec', 'note']],
   [TAB.LEVEL_OVERRIDES, ['student_code', 'subskill', 'set_to', 'set_by', 'set_at', 'note']],
+  [TAB.CLASS_SESSIONS, ['session_id', 'title', 'student_codes', 'status', 'max_tries', 'created_at', 'ended_at', 'note']],
+  [TAB.CLASS_QUEUE, ['session_id', 'item_id', 'pos', 'qid', 'subskill', 'difficulty', 'status', 'added_at', 'pushed_at', 'pushed_to', 'note']],
+  [TAB.CLASS_EVENTS, ['session_id', 'student_code', 'attempt_id', 'qid', 'type', 'value', 'at']],
   [TAB.DICTIONARY, ['tab', 'column', 'meaning', 'example']]
 ];
 

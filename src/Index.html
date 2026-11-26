@@ -61,9 +61,27 @@
     <header class="top"><button class="wm" data-go="home" type="button" title="Home"><i></i>Math Skill Bank</button>
       <div class="who"><button class="link" data-go="home" type="button">Home</button></div></header>
     <div class="qwrap">
+      <div class="clsbar hidden" id="q-cls"><b id="q-cls-title"></b><span id="q-cls-msgs"></span></div>
       <div class="qhead"><p class="eyebrow" id="q-sub"></p><span class="cnt" id="q-cnt"></span></div>
-      <div class="qcard" id="q-card"><div class="spinner"></div></div>
+      <div class="qwrap-in"><div class="qcard" id="q-card"><div class="spinner"></div></div>
+        <div class="pausecover hidden" id="q-pause"><div><b>Your teacher is going over this question</b><span>Wait for your teacher to continue.</span></div></div></div>
     </div>
+  </section>
+
+  <!-- ============ Teacher: one question on my screen (Class mode) ============ -->
+  <section id="scr-tq" class="screen">
+    <header class="top"><button class="wm" data-go="teacher" type="button" title="Back"><i></i>Math Skill Bank</button>
+      <div class="who"><button class="btn ghost small" id="tq-pen" type="button">Pen</button><button class="btn ghost small" id="tq-notes" type="button">Notes</button>
+        <button class="btn small" id="tq-ans" type="button">Show answer</button><button class="link" id="tq-close" type="button">Close</button></div></header>
+    <div class="penbar" id="pen-bar" hidden>
+      <button type="button" data-pc="blue" class="pc" style="--c:#1f5fd6" aria-label="Blue"></button><button type="button" data-pc="red" class="pc" style="--c:#d0263c" aria-label="Red"></button>
+      <button type="button" data-pc="green" class="pc" style="--c:#1f8a4c" aria-label="Green"></button><button type="button" data-pc="yellow" class="pc" style="--c:#f5c400" aria-label="Highlighter"></button>
+      <button type="button" data-pw="1">Thin</button><button type="button" data-pw="2">Thick</button><button type="button" data-pt="eraser">Eraser</button>
+      <button type="button" data-pt="undo">Undo</button><button type="button" data-pt="clear">Clear</button><button type="button" data-pt="finger" aria-pressed="false">✋ Finger draws</button><button type="button" data-pt="off">Done</button>
+    </div>
+    <div class="qwrap"><div class="qhead"><p class="eyebrow" id="tq-sub"></p><span class="cnt" id="tq-qid"></span></div>
+      <div class="qcard" id="tq-card"></div>
+      <div class="notes hidden" id="tq-notepad"><textarea id="tq-text" placeholder="Notes"></textarea></div></div>
   </section>
 
   <!-- ============ Teacher ============ -->
@@ -75,6 +93,8 @@
 
   <?!= include('Api'); ?>
   <?!= include('Client'); ?>
+  <?!= include('Pen'); ?>
   <?!= include('TeacherPage'); ?>
+  <?!= include('ClassPage'); ?>
 </body>
 </html>
