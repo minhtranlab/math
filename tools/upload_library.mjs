@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Upload (or replace) library batches in the private Drive folder "SAT Math Lib - Library".
+// Upload (or replace) library batches in the private Drive folder "MSB - Library".
 //   node tools/upload_library.mjs "<project folder>/data/library" HM1 [HM2 …]   [--dry]
 // Layout on Drive (spec v1.1 §6.1):  questions/<BATCH>.json  ·  figures/<BATCH>/<qid>_f<n>.png
 // Each figure in the uploaded JSON gets its Drive file id (drive_id); a file this tool uploaded before is replaced in place
@@ -8,7 +8,7 @@
 // Afterwards the Sheet picks the batch up at the next deploy, or in the Apps Script editor: run syncLibrary.
 import fs from 'fs'; import os from 'os'; import path from 'path';
 
-const LIBRARY_FOLDER = '1kv4i4SLgFFJDOBztZdYt6OFN3EPsQI81'; // My Drive › 📚 Academics › SAT › SAT Math Lib › SAT Math Lib - Library
+const LIBRARY_FOLDER = '1c9Mz7_tKbQ5-qZOSu2nxNR8TnAhi0-P3'; // My Drive › 📚 Academics › Math Skill Bank › MSB - Library
 const args = process.argv.slice(2), dry = args.includes('--dry');
 const [lib, ...batches] = args.filter(a => a !== '--dry');
 if (!lib || !batches.length) { console.error('usage: node tools/upload_library.mjs <data/library> BATCH [BATCH …] [--dry]'); process.exit(2); }

@@ -1,0 +1,37 @@
+<script>
+/* ===================== api.js — the ONE place the browser talks to the server =====================
+   Every call goes through API.* (Promise based). Nothing else in the page uses google.script.run
+   (tests/structure_test.js checks it), so a later move to another backend changes only this file.
+   Reads are retried once on a network error; writes (submitTry, useHint, nextQuestion) are never retried
+   automatically (a lost answer is shown on screen and the student presses again). */
+var API = (function () {
+  function run(fn, args) {
+    return new Promise(function (resolve, reject) {
+      var r = google.script.run.withSuccessHandler(resolve).withFailureHandler(function (e) { reject(e || new Error('Network error')); });
+      r[fn].apply(r, args);
+    });
+  }
+  function isNet(e) { var m = String((e && e.message) || e || ''); return !/^(LOGIN|SESSION)/.test(m); }
+  function read(fn, args) { return run(fn, args).catch(function (e) { if (!isNet(e)) throw e; return new Promise(function (ok) { setTimeout(ok, 800); }).then(function () { return run(fn, args); }); }); }
+  /** SAT Math Lib #43: the encoded answer spec of the ONE open question (salt = attempt|qid). Obfuscation only. */
+  function decodeKey(hex, salt) {
+    try {
+      var t = '', i; salt = String(salt || 'msb');
+      for (i = 0; i < hex.length / 2; i++) t += String.fromCharCode((parseInt(hex.substr(2 * i, 2), 16) ^ salt.charCodeAt(i % salt.length) ^ (37 + i * 11) % 251) & 255);
+      return JSON.parse(decodeURIComponent(escape(t)));
+    } catch (e) { return null; }
+  }
+  /** Message for the student from a server error ("LOGIN: …" → the text after the colon). */
+  function msg(e) { var m = String((e && e.message) || e || ''); return /^(LOGIN|SESSION): /.test(m) ? m.replace(/^\w+: /, '') : 'No connection. Check the internet and try again.'; }
+  return {
+    login: function (code, device, withHome) { return read('login', [code, device, withHome]); },
+    homeData: function (code) { return read('homeData', [code]); },
+    reviewList: function (code) { return read('reviewList', [code]); },
+    nextQuestion: function (code, opts) { return run('nextQuestion', [code, opts || {}]); },
+    submitTry: function (code, attemptId, answer, sec, clientSaid) { return run('submitTry', [code, attemptId, answer, sec, clientSaid]); },
+    useHint: function (code, attemptId) { return run('useHint', [code, attemptId]); },
+    teacherHome: function (code, fresh) { return read('teacherHome', [code, !!fresh]); },
+    decodeKey: decodeKey, msg: msg
+  };
+})();
+</script>

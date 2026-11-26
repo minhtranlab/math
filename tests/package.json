@@ -1,10 +1,8 @@
 {
-  "name": "testzone-tests",
+  "name": "msb-tests",
   "private": true,
-  "description": "Local harness for Test Zone: Apps Script mock (gas.js) + Playwright browser tests. See tests/README.md.",
+  "description": "Math Skill Bank test harness: Apps Script mock (gas.js) + Playwright browser tests. See tests/README.md.",
   "dependencies": {
-    "jquery": "3.7.1",
-    "mathjax": "3.2.2",
-    "mathquill": "0.10.1"
+    "mathjax": "3.2.2"
   }
 }

@@ -4,8 +4,11 @@
   <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+  <meta name="color-scheme" content="light only">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M8 54 L56 54 L56 10 Z' fill='%23b9e2db' stroke='%230f766e' stroke-width='5.5' stroke-linejoin='round'/%3E%3Crect x='43' y='41' width='13' height='13' fill='%230f766e'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Noto+Sans:wght@400;500;600;700;800&family=Noto+Serif:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <?!= include('Styles'); ?>
   <script>
     window.MathJax = {
@@ -16,214 +19,55 @@
     };
   </script>
   <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script>
+  <script>/* grading rules — the SAME functions the server uses (Grade.gs, sent as text) */
+<?!= gradeClientJs_(); ?>
+  </script>
 </head>
 <body>
-<div id="app" style="height:100%">
 
-  <!-- ============ Sign-in ============ -->
-  <section id="scr-login" class="screen on hz">
-    <header class="hz-top"><div class="hz-wm"><i></i>SAT Math Lib</div></header>
-    <div class="hz-si">
-      <i class="hz-si-mark" aria-hidden="true"></i>
+  <!-- ============ Sign-in (students and teacher) ============ -->
+  <section id="scr-login" class="screen on">
+    <header class="top"><div class="wm"><i></i>Math Skill Bank</div></header>
+    <div class="si">
+      <i class="si-mark" aria-hidden="true"></i>
       <h1>Ready to practise?</h1>
-      <form id="login-form" class="hz-form" autocomplete="off">
-        <input id="login-code" class="hz-field" maxlength="24" placeholder="Student code" aria-label="Student code" autocapitalize="characters" spellcheck="false">
-        <button class="btn-blue hz-btn" id="login-btn" type="submit">Sign In</button>
+      <form id="login-form" class="form" autocomplete="off">
+        <input id="login-code" class="field" maxlength="24" placeholder="Your code" aria-label="Your code" autocapitalize="characters" spellcheck="false">
+        <button class="btn big" id="login-btn" type="submit">Sign In</button>
       </form>
-      <div class="err" id="login-err"></div>
+      <div class="err" id="login-err" role="alert"></div>
     </div>
   </section>
 
-  <!-- ============ Home ============ -->
-  <section id="scr-home" class="screen hz">
-    <header class="hz-top"><div class="hz-wm" data-top="home" role="link" tabindex="0" title="Home"><i></i>SAT Math Lib</div><div class="hz-who"><span class="sm-nav"><button class="hz-link" type="button" data-top="skills">My skills</button><button class="hz-link" type="button" data-top="hist">History</button></span><span id="home-name"></span><button class="hz-link" id="btn-logout" type="button">Sign out</button></div></header>
-    <main class="hz-main">
-      <p class="hz-hello" id="home-hello"></p>
+  <!-- ============ Student home ============ -->
+  <section id="scr-home" class="screen">
+    <header class="top"><button class="wm" data-go="home" type="button" title="Home"><i></i>Math Skill Bank</button>
+      <div class="who"><span id="home-name"></span><button class="link" data-act="logout" type="button">Sign out</button></div></header>
+    <main class="main">
+      <p class="hello" id="home-hello"></p>
       <div id="home-list"><div class="spinner"></div></div>
     </main>
   </section>
 
-  <!-- ============ #68 My skills (the approved #67 prototype) ============ -->
-  <section id="scr-skills" class="screen hz">
-    <header class="hz-top"><div class="hz-wm" data-top="home" role="link" tabindex="0" title="Home"><i></i>SAT Math Lib</div><div class="hz-who"><span class="sm-nav"><button class="hz-link" type="button" data-top="home">Home</button><button class="hz-link" type="button" data-top="skills" aria-current="page">My skills</button><button class="hz-link" type="button" data-top="hist">History</button></span><span class="ms-who"></span></div></header>
-    <main class="hz-main ms-main" id="ms-main"></main>
-  </section>
-  <section id="scr-skill" class="screen hz">
-    <header class="hz-top"><div class="hz-wm" data-top="home" role="link" tabindex="0" title="Home"><i></i>SAT Math Lib</div><div class="hz-who"><span class="sm-nav"><button class="hz-link" type="button" data-top="home">Home</button><button class="hz-link" type="button" data-top="skills">My skills</button><button class="hz-link" type="button" data-top="hist">History</button></span><span class="ms-who"></span></div></header>
-    <main class="hz-main ms-main" id="sk-main"></main>
-  </section>
-  <section id="scr-mist" class="screen hz">
-    <header class="hz-top"><div class="hz-wm" data-top="home" role="link" tabindex="0" title="Home"><i></i>SAT Math Lib</div><div class="hz-who"><span class="sm-nav"><button class="hz-link" type="button" data-top="home">Home</button><button class="hz-link" type="button" data-top="skills">My skills</button><button class="hz-link" type="button" data-top="hist">History</button></span><span class="ms-who"></span></div></header>
-    <main class="hz-main ms-main" id="mi-main"></main>
+  <!-- ============ One question ============ -->
+  <section id="scr-q" class="screen">
+    <header class="top"><button class="wm" data-go="home" type="button" title="Home"><i></i>Math Skill Bank</button>
+      <div class="who"><button class="link" data-go="home" type="button">Home</button></div></header>
+    <div class="qwrap">
+      <div class="qhead"><p class="eyebrow" id="q-sub"></p><span class="cnt" id="q-cnt"></span></div>
+      <div class="qcard" id="q-card"><div class="spinner"></div></div>
+    </div>
   </section>
 
-  <section id="scr-hist" class="screen hz">
-    <header class="hz-top"><div class="hz-wm" data-top="home" role="link" tabindex="0" title="Home"><i></i>SAT Math Lib</div><div class="hz-who"><span class="sm-nav"><button class="hz-link" type="button" data-top="home">Home</button><button class="hz-link" type="button" data-top="skills">My skills</button><button class="hz-link" type="button" data-top="hist" aria-current="page">History</button></span><span class="ms-who"></span></div></header>
-    <main class="hz-main ms-main" id="hist-main"></main>
-  </section>
-
-  <!-- ============ Test ============ -->
-  <section id="scr-test" class="screen">
-    <header id="tbar">
-      <div class="tb-left">
-        <button id="btn-exit" type="button" title="Save and go to your home page"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7M6.5 9.5V20h11V9.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/></svg><span>Exit</span></button>
-        <div id="tb-title">Section</div>
-        <button id="btn-dir" type="button">Directions <svg width="12" height="8" viewBox="0 0 12 8"><path d="M1 1l5 5 5-5" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
-      </div>
-      <div class="tb-center">
-        <div id="timer"><span class="digits">--:--</span><svg class="clock-ico" width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>
-        <button id="btn-hide" type="button">Hide</button>
-        <button id="btn-view-back" class="btn-outline" type="button">Back to result</button>
-      </div>
-      <div class="tb-right">
-        <button class="tool hidden" id="tool-calc" type="button" title="Calculator">
-          <svg viewBox="0 0 24 24"><rect x="5" y="2.5" width="14" height="19" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><rect x="8" y="5.5" width="8" height="4" rx=".6" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="9" cy="13" r="1" fill="currentColor"/><circle cx="12" cy="13" r="1" fill="currentColor"/><circle cx="15" cy="13" r="1" fill="currentColor"/><circle cx="9" cy="17" r="1" fill="currentColor"/><circle cx="12" cy="17" r="1" fill="currentColor"/><circle cx="15" cy="17" r="1" fill="currentColor"/></svg>
-          <span>Calculator</span></button>
-        <button class="tool hidden" id="tool-ref" type="button" title="Reference">
-          <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M9 10h7M9 14h7M9 18h4" stroke="currentColor" stroke-width="1.6"/></svg>
-          <span>Reference</span></button>
-        <button class="tool go-only" id="tool-notes" type="button" title="Notes (teacher)">
-          <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.6"/></svg>
-          <span>Notes</span></button>
-        <button class="tool go-only" id="tool-pen" type="button" title="Pen: draw on the question (teacher)">
-          <svg viewBox="0 0 24 24"><path d="M15 4l5 5L9 20H4v-5z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/><path d="M13 6l5 5" stroke="currentColor" stroke-width="1.8"/></svg>
-          <span>Pen</span></button>
-        <button class="tool" id="tool-annot" type="button" title="Annotate">
-          <svg viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/><path d="M13 7l4 4" stroke="currentColor" stroke-width="1.8"/><path d="M14 20h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          <span>Annotate</span></button>
-        <button class="tool" id="tool-more" type="button" title="More">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="19" r="1.8" fill="currentColor"/></svg>
-          <span>More</span></button>
-      </div>
-    </header>
-    <div class="dash"></div>
-    <div id="practice-banner">This is a practice test</div>
-
-    <div id="warn-banner" role="alert"><span id="warn-text">5 minutes remaining in this part.</span><button type="button" id="warn-x" aria-label="Close">×</button></div>
-    <div id="dir-pop" class="popover"><div class="dir-text" id="dir-pop-text"></div><div style="text-align:right;margin-top:16px"><button class="btn-blue" id="dir-close" type="button">Close</button></div></div>
-    <div id="more-menu" class="menu">
-      <button type="button" data-act="help"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.5v.7M12 17h.01" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>Help</button>
-      <button type="button" data-act="reader"><svg width="20" height="20" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="1" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M3 4h18M3 20h18" stroke="currentColor" stroke-width="1.8" opacity=".4"/></svg><span id="reader-label">Line Reader</span></button>
-      <hr>
-      <button type="button" data-act="zin"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M15.5 15.5L21 21M8 10.5h5M10.5 8v5" stroke="currentColor" stroke-width="1.8"/></svg>Zoom In</button>
-      <button type="button" data-act="zout"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M15.5 15.5L21 21M8 10.5h5" stroke="currentColor" stroke-width="1.8"/></svg>Zoom Out</button>
-      <button type="button" data-act="zreset"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>Reset Zoom (<span id="zoom-val">100%</span>)</button>
-      <button type="button" data-act="savelater" id="mm-save" hidden><svg width="20" height="20" viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z M8 3v6h8V3 M8 21v-7h8v7" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg>Save and continue later</button>
-    </div>
-
-    <div id="view-bar" class="rv-info"></div>
-    <div id="pen-bar" role="toolbar" aria-label="Pen" hidden>
-      <span class="pb-l">Pen</span>
-      <button type="button" class="pb-c on" data-pc="blue" title="Blue" style="--c:#1f5fd6"></button>
-      <button type="button" class="pb-c" data-pc="red" title="Red" style="--c:#d0263c"></button>
-      <button type="button" class="pb-c" data-pc="green" title="Green" style="--c:#1f8a4c"></button>
-      <button type="button" class="pb-c" data-pc="yellow" title="Yellow highlighter" style="--c:#f5c400"></button>
-      <i class="pb-sep"></i>
-      <button type="button" class="pb-w on" data-pw="1" title="Thin"><b style="height:2px"></b></button>
-      <button type="button" class="pb-w" data-pw="2" title="Thick"><b style="height:5px"></b></button>
-      <i class="pb-sep"></i>
-      <button type="button" class="pb-t" data-pt="eraser">Eraser</button>
-      <button type="button" class="pb-t" data-pt="undo">Undo</button>
-      <button type="button" class="pb-t" data-pt="clear">Clear drawing</button>
-      <button type="button" class="pb-t pb-off" data-pt="off">Pen off</button>
-    </div>
-    <main id="tmain">
-      <div class="view" id="v-directions"></div>
-      <div class="view" id="v-question" style="height:100%"><div id="qwrap" style="height:100%"></div></div>
-      <div class="view" id="v-review"></div>
-      <div class="view" id="v-transition"></div>
-      <div class="view" id="v-break"></div>
-      <div class="view" id="v-wait"></div>
-    </main>
-
-    <div id="go-strip" aria-live="polite"></div>
-    <div class="dash"></div>
-    <footer id="fbar">
-      <div id="fb-left"><div id="fb-name"></div><div id="save-dot"></div><div id="fb-go"></div></div>
-      <div class="fb-center"><button id="btn-nav" type="button"><span id="nav-label">Question 1 of 1</span><svg width="12" height="8" viewBox="0 0 12 8"><path d="M1 7l5-5 5 5" stroke="currentColor" stroke-width="2" fill="none"/></svg></button></div>
-      <div class="fb-right"><button class="btn-blue" id="btn-back" type="button">Back</button><button class="btn-blue" id="btn-next" type="button">Next</button></div>
-    </footer>
-
-    <div id="nav-pop" class="popover">
-      <div class="pop-head"><span id="nav-pop-title">Questions</span><button class="x-btn" id="nav-x" type="button" aria-label="Close">×</button></div>
-      <div class="legend" id="nav-legend"></div>
-      <div class="grid" id="nav-grid"></div>
-      <div class="pop-foot"><button class="btn-outline" id="nav-review" type="button">Go to Review Page</button></div>
-    </div>
-
-    <div id="calc-panel" class="float-panel" style="left:16px;top:84px;width:520px;height:600px">
-      <div class="fp-head" id="calc-head"><span class="ttl">Calculator</span>
-        <span class="seg"><button type="button" id="calc-g" class="on">Graphing</button><button type="button" id="calc-s">Scientific</button></span>
-        <button type="button" id="calc-exp" title="Expand">Expand</button><button type="button" id="calc-x" aria-label="Close" style="font-size:20px;line-height:1">×</button></div>
-      <div class="fp-body"><div id="calc-graph"></div><div id="calc-sci" class="hidden"></div><div id="calc-msg" class="calc-msg hidden"></div></div>
-      <div class="fp-resize" id="calc-rs"></div>
-    </div>
-    <div id="ref-panel" class="float-panel" style="right:24px;top:84px;width:520px;height:480px">
-      <div class="fp-head" id="ref-head"><span class="ttl">Reference</span><button type="button" id="ref-x" aria-label="Close" style="font-size:20px;line-height:1">×</button></div>
-      <div class="fp-body"><div id="ref-body"></div></div>
-      <div class="fp-resize" id="ref-rs"></div>
-    </div>
-    <div id="notes-panel" class="float-panel" style="right:24px;top:84px;width:460px;height:420px" aria-label="Notes">
-      <div class="fp-head" id="notes-head"><span class="ttl">Notes</span><span class="nt-hint">Math first · Ctrl+T = words</span><button type="button" id="notes-x" aria-label="Close" style="font-size:20px;line-height:1">×</button></div>
-      <div class="nt-tools" id="nt-tools">
-        <button type="button" data-nt="bold" title="Bold (Ctrl+B)"><b>B</b></button>
-        <button type="button" data-nt="c" data-c="#1b2a4a" title="Navy" class="nt-dot" style="--c:#1b2a4a"></button>
-        <button type="button" data-nt="c" data-c="#d0263c" title="Red" class="nt-dot" style="--c:#d0263c"></button>
-        <button type="button" data-nt="c" data-c="#1f5fd6" title="Blue" class="nt-dot" style="--c:#1f5fd6"></button>
-        <button type="button" data-nt="c" data-c="#1f8a4c" title="Green" class="nt-dot" style="--c:#1f8a4c"></button>
-        <button type="button" data-nt="hl" title="Highlight (Ctrl+E)"><span class="nt-hl">ab</span></button>
-        <button type="button" data-nt="ul" title="Bullet line">• List</button>
-        <button type="button" data-nt="math" title="New math field ($ or Ctrl+M)">∑ Math</button>
-        <button type="button" data-nt="text" title="Words (Ctrl+T): on an empty line the line becomes words; inside math, upright words in the math. Esc = leave the math">Aa Text</button>
-        <i class="pb-sep"></i>
-        <button type="button" data-nt="copy">Copy</button>
-        <button type="button" data-nt="clear">Clear</button>
-        <button type="button" data-nt="end">End &amp; clear</button>
-      </div>
-      <div class="fp-body nt-body"><div id="nt-ed" contenteditable="true" spellcheck="false" data-ph="Math: / fraction · ^ power · sqrt root · Enter = new line · Ctrl+T = words"></div></div>
-      <div class="fp-resize" id="notes-rs"></div>
-    </div>
-    <aside id="go-drawer" aria-hidden="true"><div class="gd-head"><b>Details</b><button type="button" id="go-dr-x" aria-label="Close">×</button></div><div id="go-dr-body"></div></aside>
-    <div id="hl-toolbar">
-      <div class="hl-row">
-        <button type="button" class="hl-dot hl-y" data-c="y" aria-label="Yellow"></button>
-        <button type="button" class="hl-dot hl-b" data-c="b" aria-label="Blue"></button>
-        <button type="button" class="hl-dot hl-p" data-c="p" aria-label="Pink"></button>
-        <button type="button" class="hl-btn" data-c="u" style="text-decoration:underline" title="Underline" aria-label="Underline">U</button>
-        <button type="button" class="hl-btn" id="hl-note-btn" title="Add note" aria-label="Add note">✎ Note</button>
-        <button type="button" class="hl-btn" id="hl-del" title="Delete highlight" aria-label="Delete highlight">🗑</button>
-        <button type="button" class="hl-btn" id="hl-close" title="Close" aria-label="Close">×</button>
-      </div>
-      <textarea id="hl-note" class="hidden" placeholder="Type a note…"></textarea>
-    </div>
-    <div id="line-reader"><div id="lr-top"></div><div id="lr-band"></div><div id="lr-bot"></div></div>
-  </section>
-
-  <!-- ============ Result ============ -->
-  <section id="scr-result" class="screen"><div id="result-body"></div></section>
-  <!-- ============ Review (read-only questions of a finished attempt) ============ -->
   <!-- ============ Teacher ============ -->
   <section id="scr-teacher" class="screen">
-    <div class="topbar-simple t-top">
-      <div class="brand t-brand" id="t-brand" role="link" tabindex="0" title="Home" style="font-size:20px"><span class="brand-mark" style="width:28px;height:28px" aria-hidden="true"></span><span class="app-name">SAT Math Lib</span><span class="t-badge">Teacher</span></div>
-      <nav class="t-nav"><button class="btn-plain" type="button" data-go="asks">Asked <span id="t-asks-n"></span></button><button class="btn-plain" type="button" data-go="asg">Assignment</button><button class="btn-plain" id="t-logout" type="button">Sign out</button></nav>
-    </div>
-    <div class="t-body" id="t-body"><div class="spinner"></div></div>
-    <div id="t-panel" class="t-panel" aria-hidden="true"><div class="t-panel-in" id="t-panel-in"></div></div>
+    <header class="top"><button class="wm" data-go="teacher" type="button" title="Home"><i></i>Math Skill Bank</button>
+      <div class="who"><span>Teacher</span><button class="link" data-act="logout" type="button">Sign out</button></div></header>
+    <main class="main" id="t-main"><div class="spinner"></div></main>
   </section>
-</div>
 
-<div id="modal-root"></div>
-<div id="toast"></div>
-
-<svg width="0" height="0" style="position:absolute">
-  <defs>
-    <symbol id="i-flag" viewBox="0 0 14 18"><path d="M1 1h12v16l-6-4-6 4z" fill="#c8102e"/></symbol>
-    <symbol id="i-pin" viewBox="0 0 16 18"><path d="M8 17s6-6 6-10A6 6 0 0 0 2 7c0 4 6 10 6 10z" fill="#1e1e1e"/><circle cx="8" cy="7" r="2.2" fill="#fff"/></symbol>
-  </defs>
-</svg>
-
-<?!= include('Client'); ?>
-<?!= include('TeacherPage'); ?>
+  <?!= include('Api'); ?>
+  <?!= include('Client'); ?>
+  <?!= include('TeacherPage'); ?>
 </body>
 </html>

@@ -1,144 +1,76 @@
-// Browser end-to-end (Chromium, made-up fixture library): the live smoke test, run locally.
-// sign in → home (three columns) → Linear functions, 5 → set (no timer) → answer → Check Your Work → submit → result
-// (First Try / Best Score) → open a question (read-only, no key) → home history. Wrong code. No key in any payload.
-const { setup, shot, englishOnly, login, waitMath, check, summary, sleep } = require('./h');
-
+// Browser (Chromium) on the real page + server code (mock Sheet, made-up FX1): sign in → home → 3 sample questions with
+// instant ✓/✗ and 2 tries → answer shown + review list → Hint → teacher sign-in → Refresh. Screenshots → SHOTS.
+const { setup, sleep, shot, login, check, summary } = require('./h');
 (async () => {
   const E = await setup();
   try {
-    const { page } = await E.newPage('desktop1280');
-    console.log('wrong code');
-    await login(page, E.url, 'NOPE-1');
-    await page.waitForFunction(() => /not found/i.test(document.querySelector('#login-err').textContent));
-    check(true, 'wrong code → "Code not found", stays on sign-in');
-    check(!E.st.rpcLog.some(r => r.fn !== 'login'), 'nothing but login was called');
+    const { page } = await E.newPage();
+    console.log('student');
+    await login(page, E.url, 'FX-TXX');
+    await page.waitForSelector('#login-err:not(:empty)'); check(/not found/i.test(await page.textContent('#login-err')), 'wrong code → message');
+    await shot(page, '01_sign_in');
+    await page.fill('#login-code', 'fx-t01'); await page.click('#login-btn');
+    await page.waitForSelector('#scr-home.on [data-start="path"]');
+    check(/Hi Tess!/.test(await page.textContent('#home-hello')), 'home: Hi Tess!');
+    check(/3 sample questions/.test(await page.textContent('#home-list')), 'home: 3 sample questions card');
+    await shot(page, '02_home_sample');
+    await page.click('[data-start="path"]');
+    await page.waitForSelector('.ch');
+    check(await page.$$eval('.ch', b => b.length) === 3, 'Q1: 3 choices, Check + Hint buttons'); await sleep(400);
+    await shot(page, '03_q1_mcq');
+    await page.click('.ch[data-l="A"]'); await page.click('#q-check');
+    await page.waitForSelector('.fb.no'); check(/1 try left/.test(await page.textContent('#q-fb')), 'wrong → "Not quite — 1 try left" at once');
+    check(await page.$eval('.ch[data-l="A"]', b => b.classList.contains('tried') && b.disabled), 'tried choice crossed out');
+    await page.waitForFunction(() => /Saved/.test(document.querySelector('#q-sync').textContent));
+    await shot(page, '04_q1_wrong_once');
+    await page.click('.ch[data-l="B"]'); await page.click('#q-check');
+    await page.waitForSelector('.fb.ok'); check(/Correct/.test(await page.textContent('#q-fb')), 'right → ✓ Correct');
+    await page.waitForSelector('#q-next'); await sleep(300);
+    await shot(page, '05_q1_correct');
+    await page.click('#q-next');
+    await page.waitForSelector('#q-num');
+    check(/cm/.test(await page.textContent('.numrow')), 'Q2: number box + unit cm');
+    await page.click('#q-hint'); await page.waitForSelector('.hint');
+    check(/Made-up hint/.test(await page.textContent('.hint')), 'Hint shows');
+    await shot(page, '06_q2_hint');
+    await page.fill('#q-num', '8.66'); await page.press('#q-num', 'Enter');
+    await page.waitForSelector('.fb.no');
+    await page.waitForFunction(() => /Saved/.test(document.querySelector('#q-sync').textContent));
+    await page.fill('#q-num', '9'); await page.click('#q-check');
+    await page.waitForSelector('.fb.ans');
+    const ans = await page.textContent('#q-fb');
+    check(/Answer: 5\.00 cm/.test(ans) && /review list/.test(ans), '2nd wrong → "Answer: 5.00 cm" + added to review list');
+    await page.waitForSelector('#q-next'); await sleep(300);
+    await shot(page, '07_q2_wrong_twice');
+    await page.click('#q-next'); await page.waitForSelector('#q-num');
+    await page.fill('#q-num', '36.87°'); await page.click('#q-check');
+    await page.waitForSelector('.fb.ok'); check(true, 'Q3: 36.87° accepted for a 1 d.p. answer');
+    await page.click('[data-go="home"].btn');
+    await page.waitForSelector('[data-start="review"]');
+    check(/1 to review/.test(await page.textContent('#home-list')), 'home: review list 1');
+    await shot(page, '08_home_review');
+    const att = E.st.gas.table('Attempts'), tries = E.st.gas.table('Tries');
+    check(att.length === 3 && att.every(a => a.status === 'done') && tries.length === 5, 'Sheet: 3 attempts done, 5 tries stored');
+    check(tries.every(t => t.client_said === t.correct), 'every instant ✓/✗ = the server re-grade (' + tries.length + ' tries)');
+    check(!E.st.rpcLog.some(r => /"key"|accepted|mistake_type/.test(r.res)), 'no key / mistake type in any server→browser payload (' + E.st.rpcLog.length + ' calls)');
 
-    console.log('sign in + home');
-    await login(page, E.url, 'FX-T01');
-    await page.waitForSelector('#picker .sm-it');
-    await shot(page, 'e2e_home');
-    check(await page.$eval('#home-hello', e => /^Hi Test\./.test(e.textContent)), 'greeting with first name');
-    check((await page.$$('#picker .sm-c1 .sm-it')).length === 4, '4 areas');
-    const lf = await page.$('#picker [data-k="H.B"]');
-    check(!!lf, 'Linear functions in the skill column');
-    await lf.click();
-    check(await page.$eval('#picker .sm-c3 h3', e => e.textContent) === 'Linear functions', 'panel shows the chosen skill');
-    check((await page.$$('#picker .sm-subl div')).length >= 5, 'its sub-skills listed (progress only)');
-    await page.click('#picker [data-n="5"]');
-    check(await page.$eval('#btn-start', e => e.textContent) === 'Start 5 questions', '5 / 10 / 20 → "Start 5 questions"');
+    console.log('phone');
+    const ph = (await E.newPage('phone')).page;
+    await login(ph, E.url, 'FX-T03'); await ph.waitForSelector('#scr-home.on .row');
+    await shot(ph, '09_phone_home_path');
 
-    console.log('the set');
-    await page.click('#btn-start');
-    await page.waitForSelector('#btn-begin');
-    await waitMath(page);
-    check(await page.$eval('#v-directions', e => /No\s*timer/i.test(e.innerText)), 'start card: "No timer"');
-    check(await page.$eval('#timer', e => getComputedStyle(e).visibility === 'hidden'), 'no timer in the top bar');
-    await shot(page, 'e2e_start');
-    await page.click('#btn-begin');
-    await page.waitForSelector('#qwrap .q.on');
-    await waitMath(page);
-    check(await page.$eval('#timer', e => getComputedStyle(e).visibility === 'hidden'), 'no timer while answering');
-    check(!(await page.isHidden('#tool-calc')) && !(await page.isHidden('#tool-ref')), 'Calculator + Reference available');
-    const n = await page.$$eval('#qwrap .q', a => a.length);
-    check(n === 5, '5 questions');
-    await shot(page, 'e2e_q1');
-    for (let i = 0; i < n; i++) {
-      const box = await page.$('#qwrap .q.on');
-      const spr = await box.$('.spr-in');
-      if (i === 0) {
-        check(!(await page.$('#qwrap .q-code')) && /Question 1 of 5/.test(await page.$eval('#nav-label', e => e.textContent)), 'no question code for students (it would show E/M/H): only "Question 1 of 5"');
-        check(await page.$$eval('#qwrap .stem .nw', a => a.length) > 0, 'math + the punctuation after it kept together (no "?" alone on a line)');
-      }
-      if (i === 1) {
-        await (await box.$('.q-ask')).click();
-        await (await box.$('.ask-in')).fill('I do not get the graph');
-        check(await box.$eval('.q-askrow', e => getComputedStyle(e).display !== 'none'), 'Ask teacher: note box opens');
-      }
-      if (i === 0) { /* leave the first one blank */ }
-      else if (spr) { await spr.fill('3/4'); await spr.press('Tab'); await sleep(200); }
-      else { const ch = await box.$$('.ch'); await ch[i % ch.length].click(); }
-      await page.click('#btn-next');
-      await sleep(150);
-    }
-    await page.waitForSelector('#v-review.on');
-    check(await page.$eval('#v-review', e => /1<\/b> unanswered|1 unanswered/.test(e.innerHTML) || /1\s*unanswered/.test(e.innerText)), 'Check Your Work: 1 unanswered');
-    await page.click('#btn-save-later');
-    await page.waitForSelector('#pickup .hz-resume button');
-    check(/4\/5 answered/.test(await page.$eval('#pickup', e => e.innerText)), 'Save and continue later → home: "Continue · 4/5 answered"');
-    await page.click('#pickup .hz-resume button');
-    await page.waitForSelector('#v-review.on');
-    check(true, 'Continue → back on Check Your Work');
-    await page.click('#btn-next');
-    await page.waitForSelector('#modal-root.on');
-    check(await page.$eval('#modal-root', e => /Submit this set\?/.test(e.innerText) && /blank: they count as wrong/.test(e.innerText)), 'confirm: "Submit this set?" + blank warning');
-    await page.click('#modal-root .btns button:last-child');
-    await page.waitForSelector('#score-first');
-    await shot(page, 'e2e_result');
-    const ft = await page.$eval('#score-first .v', e => e.textContent), bs = await page.$eval('#score-best .v', e => e.textContent);
-    check(/^\d\/5$/.test(ft) && ft === bs, 'result: First Try ' + ft + ', Best Score ' + bs);
-    check(await page.$eval('#result-body', e => /Correct answers are never shown/.test(e.innerText)), 'result says correct answers are never shown');
-    const cells = await page.$$('#result-body .rgrid .rcell');
-    check(cells.length === 5, 'grid of 5 questions');
-    await cells[1].click();
-    await page.waitForSelector('#view-bar span');
-    await waitMath(page);
-    const bar = await page.$eval('#view-bar', e => e.innerText);
-    check(/Your answer/.test(bar) && !/Correct answer/.test(bar) && !(await page.$('#rv-show')), 'review: own answer shown, no correct answer, no Show answer button');
-    await shot(page, 'e2e_review');
-    await page.click('#btn-view-back');
-    check(/Q2/.test(await page.$eval('#asked-list', e => e.innerText)), 'result: "You asked your teacher about: Q2"');
-
-    console.log('fix wrong answers');
-    const Qt = {}; E.st.gas.table('Questions').forEach(r => { Qt[r.qid] = r; });
-    await page.click('#btn-fix');
-    await page.waitForSelector('#btn-check');
-    await waitMath(page);
-    let fixed = 0;
-    for (let k = 0; k < 6; k++) {
-      const cur = await page.$('#qwrap .q.on'); if (!cur) break;
-      const qid = await cur.getAttribute('data-qid'), key = String(Qt[qid].key).replace(/^'/, '');
-      if (!(await page.$('#btn-check'))) { if (await page.$('#btn-next:not([disabled])')) { await page.click('#btn-next'); await sleep(200); continue; } break; }
-      if (Qt[qid].type === 'spr') {
-        await (await cur.$('.spr-in')).fill('98'); await page.click('#btn-check'); await page.waitForFunction(() => /Not yet/.test(document.querySelector('#view-bar').innerText));
-        check(true, 'grid-in wrong → "Not yet"');
-        await (await cur.$('.spr-in')).fill(key);
-      } else {
-        const wrong = ['A', 'B', 'C', 'D'].find(l => l !== key);
-        await (await cur.$('.ch-row[data-l="' + wrong + '"] .ch')).click(); await page.click('#btn-check');
-        await page.waitForFunction(() => /Not yet/.test(document.querySelector('#view-bar').innerText));
-        check(await cur.$eval('.ch-row[data-l="' + wrong + '"]', e => e.classList.contains('tried')) && /2 tries left/.test(await page.$eval('#view-bar', e => e.innerText)), 'MCQ wrong → "Not yet — 2 tries left", the letter crossed out');
-        await (await cur.$('.ch-row[data-l="' + key + '"] .ch')).click();
-      }
-      await page.click('#btn-check');
-      await page.waitForFunction(() => /Fixed/.test(document.querySelector('#view-bar').innerText));
-      fixed++;
-      await shot(page, 'e2e_fix');
-      break;
-    }
-    check(fixed === 1, 'right answer → "✓ Fixed" (the key itself never sent)');
-    await page.click('#btn-view-back');
-    await page.waitForSelector('#score-best');
-    const bs2 = await page.$eval('#score-best .v', e => e.textContent);
-    check(Number(bs2.split('/')[0]) === Number(ft.split('/')[0]) + 1, 'Best Score after the fix: ' + bs2 + ' (First Try still ' + await page.$eval('#score-first .v', e => e.textContent) + ')');
-    await page.click('#res-home');
-    await page.waitForSelector('#history');
-    check(await page.$eval('#assigned', e => /Assigned by your teacher/i.test(e.innerText) && /No assignment right now/.test(e.innerText)), 'home: "Assigned by your teacher" — "No assignment right now"');
-    check(/Mixed Practice/.test(await page.$eval('#mixed-card', e => e.innerText)) && (await page.$$('#mixed-card [data-mn]')).length === 3, 'home: "Mixed Practice" card with 5 / 10 / 20');
-    check(/\d+ questions? to review/.test(await page.$eval('#review-card', e => e.innerText)), 'home: Review card "n questions to review"');
-    await shot(page, 'e2e_home2');
-    const hist = await page.$eval('#history', e => e.innerText);
-    check(/Linear functions/.test(hist) && hist.includes(ft), 'home history: the set with its First Try');
-
-    console.log('review area');
-    await page.click('#btn-review');
-    await page.waitForSelector('#btn-begin');
-    check((await page.$eval('#tb-title', e => e.textContent)) === 'Review', 'Review mini-set opens ("Review")');
-
-    console.log('payloads');
-    const bad = E.st.rpcLog.filter(r => /"key"|"accepted"|key_source|"tags"|drive_id|transcription_notes/.test(r.res));
-    check(!bad.length, 'no key / accepted / tags / drive id in ' + E.st.rpcLog.length + ' server→browser payloads' + (bad.length ? ' → ' + bad.map(b => b.fn).join(',') : ''));
-    englishOnly(E);
-  } catch (e) { console.error(e); check(false, 'exception: ' + e.message); }
+    console.log('teacher');
+    const tp = (await E.newPage()).page;
+    await login(tp, E.url, 'TEACH-FX-9');
+    await tp.waitForSelector('#t-refresh');
+    check(/Tess Test/.test(await tp.textContent('#t-main')) && /Wrong twice/.test(await tp.textContent('#t-main')), 'teacher overview: students + wrong twice');
+    await shot(tp, '10_teacher');
+    const before = await tp.textContent('.stamp');
+    await sleep(1100); await tp.click('#t-refresh'); await tp.waitForFunction(b => document.querySelector('.stamp') && document.querySelector('.stamp').textContent !== b, before);
+    check(true, 'Refresh reloads (stamp changed)');
+    check(E.st.rpcLog.filter(r => r.fn === 'teacherHome').slice(-1)[0].req.includes('true'), 'Refresh asks for a fresh read');
+    check(E.errors.length === 0, 'no page errors (' + E.errors.length + ')');
+  } catch (e) { console.log('  ✗ FAIL: exception ' + e.stack); check(false, 'no exception'); }
   await E.close();
   process.exit(summary() ? 1 : 0);
 })();
