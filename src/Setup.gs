@@ -41,7 +41,8 @@ function syncLibrary() { requireEditor_(); _forceFresh = true; console.log(syncL
 function ensureTabs_() {
   var made = [], cols = 0;
   TABS_.forEach(function (t) { var r = dataEnsureTab_(t[0], t[1]); if (r.made) made.push(t[0]); cols += r.added; });
-  return 'tabs: ' + (made.length ? 'created ' + made.join(', ') : 'all there') + (cols ? ' · columns added: ' + cols : '');
+  var old = dataRetireOldTabs_();
+  return 'tabs: ' + (made.length ? 'created ' + made.join(', ') : 'all there') + (cols ? ' · columns added: ' + cols : '') + (old.length ? ' · hidden as _old_: ' + old.join(', ') : '');
 }
 
 /** Settings rows the code needs (value only when the row is new; Minh's values are never changed). */

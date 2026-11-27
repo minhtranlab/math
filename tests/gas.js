@@ -101,6 +101,8 @@ class Sheet {
   }
   getName() { return this.name; }
   setName(n) { this.name = n; return this; }
+  hideSheet() { this.hidden = true; return this; }
+  isSheetHidden() { return !!this.hidden; }
   getMaxRows() { return this.maxRows; }
   insertRowsAfter(a, n) { this.maxRows += n; this.grows++; }
   getLastRow() { let n = 0; this.rows.forEach((r, i) => { if (r.some(v => v !== '' && v !== null && v !== undefined)) n = i + 1; }); return n; }

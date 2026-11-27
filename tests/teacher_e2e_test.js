@@ -36,7 +36,7 @@ async function draw(pg, sel, x0, y0, x1, y1) {
     await shot(sp, 'T9_03_student_home_card');
     await sp.click('[data-start="teacher"]'); await sp.waitForSelector('.ch');
     check(await sp.evaluate(() => S.cur.q.qid) === 'FX-001' && !(await sp.$eval('#q-ts', e => e.classList.contains('hidden'))), 'first question = FX-001; "Practise with teacher" bar shown');
-    check((await sp.$$('#scr-q .tools .tool')).length === 4, 'student tools: Pen · Calculator · Notes · More space');
+    check((await sp.$$('#scr-q .tools .tool')).length === 5, 'student tools: Pen · Calculator · Notes · More space · Snapshot');
     await sp.click('.ch[data-l="A"]'); await sp.click('#q-check'); await sp.waitForSelector('.fb.no');
     check(/2 tries left/.test(await sp.textContent('#q-fb')), '3 tries: wrong → "2 tries left"');
     await sp.waitForFunction(() => /Saved/.test(document.querySelector('#q-sync').textContent));
@@ -103,6 +103,10 @@ async function draw(pg, sel, x0, y0, x1, y1) {
     await draw(sp, '#q-work .pen-cv', 60, 50, 220, 90);
     check(!!(await sp.$('#q-work .blank')) && await sp.evaluate(() => PEN.strokes.length) === 1, 'student: More space + pen work on the question screen');
     await sp.click('[data-pt="off"]');
+    await sp.click('#scr-q [data-tool="snap"]'); await sp.waitForSelector('#snap:not(.hidden)', { timeout: 15000 });
+    const ssn = await sp.evaluate(() => new Promise(r => { const i = $('#snap-img'); const f = () => r([i.naturalWidth, i.naturalHeight]); if (i.complete && i.naturalWidth) f(); else i.onload = f; }));
+    check(ssn[0] > 600 && ssn[1] > 900, 'student Snapshot too: one PNG of question + ink + space (' + ssn.join('×') + ')');
+    await shot(sp, 'T13_student_snapshot'); await sp.click('#snap-close');
     await shot(sp, 'T9_08_student_question_tools');
     E.st.latency = 1500;                                              // the save is slow: the student presses Next before it comes back
     await sp.click('.ch[data-l="C"]'); await sp.click('#q-check'); await sp.waitForSelector('.fb.ok'); await sp.click('#q-next');

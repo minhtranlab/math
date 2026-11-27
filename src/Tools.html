@@ -2,7 +2,7 @@
 /* ===================== MSB — question-screen tools (students AND teacher) =====================
    Pen (Pen.html) · Calculator (Desmos graphing + scientific, like SAT Math Lib) · Notes (math lines with MathQuill, text lines;
    idea from SML go-over Notes, kept per question in this browser tab) · More space (blank writing area below the question,
-   press again for more; the pen covers it) · Snapshot (teacher: question + ink + blank area as one PNG, html2canvas).
+   press again for more; the pen covers it) · Snapshot (students and teacher, #13: question + ink + blank area as one PNG, html2canvas).
    Panels float (drag by the title bar). Everything loads only when first used. LIGHT ONLY. */
 var TL = { host: null, notes: {}, notesKey: '', mq: null, calc: null, sci: null, loading: {} };
 function loadJs(src) { return new Promise(function (ok, no) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = function () { no(new Error('Could not load ' + src)); }; document.head.appendChild(s); }); }
@@ -127,9 +127,9 @@ function snapshot(host, btn) {
     $('#snap-share').classList.toggle('hidden', !canShare);
     $('#snap').classList.remove('hidden'); done();
     return url;
-  }).catch(function (e) { done(); alertTool('Snapshot did not work here — use the iPad screenshot.'); throw e; });
+  }).catch(function (e) { done(); alertTool('Snapshot did not work here — use the iPad screenshot.', host); throw e; });
 }
-function alertTool(m) { var el = $('#tq-info') || $('#q-cnt'); if (el) el.insertAdjacentHTML('beforeend', ' <span class="err">' + esc(m) + '</span>'); }
+function alertTool(m, host) { var sc = host && host.closest('.screen'), el = sc && sc.querySelector('.qhead .cnt'); if (el) el.insertAdjacentHTML('beforeend', ' <span class="err">' + esc(m) + '</span>'); }
 
 document.addEventListener('click', function (ev) {
   var t = ev.target.closest('[data-tool]');
@@ -139,6 +139,7 @@ document.addEventListener('click', function (ev) {
     else if (k === 'calc') { if ($('#calc-panel').classList.contains('hidden')) calcOpen(); else { floatClose('calc-panel'); $$('[data-tool="calc"]').forEach(function (b) { b.classList.remove('on'); }); } }
     else if (k === 'notes') { if ($('#notes-panel').classList.contains('hidden')) notesOpen(); else { notesSave(); floatClose('notes-panel'); $$('[data-tool="notes"]').forEach(function (b) { b.classList.remove('on'); }); } }
     else if (k === 'space') moreSpace(host);
+    else if (k === 'snap') snapshot(host, t).catch(function () {});        // students too (#13, BRAIN §5 #32)
     return;
   }
   var c = ev.target.closest('[data-close]');

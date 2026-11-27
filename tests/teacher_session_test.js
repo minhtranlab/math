@@ -93,5 +93,33 @@ e = ''; try { call('liveTyping', 'FX-T03', T('Attempts').find(a => a.student_cod
 check(!/"key"|accepted|mistake_type/.test(JSON.stringify(call('nextQuestion', 'FX-T03', { teacher: sid3b }))), 'student payload: no key / mistake types');
 const sp = call('homeData', 'FX-T01'); check(sp.path !== undefined, 'Practice still works after (home loads)');
 
+console.log('#13: start at EXACTLY the teacher level, level up inside the assignment');
+{
+  const g2 = makeGas(), c2 = (fn, ...a) => { g2.fresh(); return g2.call(fn, a); }, T2 = n => g2.table(n);
+  c2('teacherSetLevel', TEACHER, 'FX-T01', 'TRIG.RT.LABEL', 'M');
+  const h2 = c2('tsStart', TEACHER, 'FX-T01', ['TRIG.RT.LABEL'], 'E', '', ''), s2 = h2.students.find(s => s.code === 'FX-T01').open.session_id;
+  const seen = [];
+  for (let i = 0; i < 3; i++) {
+    const q2 = c2('nextQuestion', 'FX-T01', { teacher: s2 }); seen.push(q2.q.qid + ':' + T2('Attempts').slice(-1)[0].difficulty);
+    c2('submitTry', 'FX-T01', q2.attempt_id, KEY[q2.q.qid], fast, true);
+  }
+  check(seen.every(x => /:E$/.test(x)), 'student at M, teacher chose Easy → Easy items (' + seen.join(' ') + ')');
+  const q4 = c2('nextQuestion', 'FX-T01', { teacher: s2 });
+  check(q4.q.qid === 'FX-005' && T2('Attempts').slice(-1)[0].difficulty === 'M', 'after 3 right in time at Easy → Medium inside the assignment (FX-005)');
+  check(g2.ctx.progressOf_('FX-T01', 'TRIG.RT.LABEL').level === 'M' && g2.ctx.progressOf_('FX-T01', 'TRIG.RT.LABEL').steps === 0, 'mastery unchanged by the easier items (still M · 0 steps, like Practice)');
+  const h3 = c2('tsStart', TEACHER, 'FX-T03', ['TRIG.RT.LABEL'], 'H', '', ''), s3 = h3.students.find(s => s.code === 'FX-T03').open.session_id;
+  check(c2('nextQuestion', 'FX-T03', { teacher: s3 }).q.qid === 'FX-006', 'teacher chose Hard → the Hard item first (FX-006)');
+}
+{
+  const { createGas } = require('./gas'); const { initialTabs, LIB_ID } = require('./server'); const path = require('path');
+  const tabs = initialTabs(); tabs.Class_Sessions = [['session_id', 'title'], ['C1', 'old class']]; tabs.Class_Queue = [['session_id', 'qid'], ['C1', 'FX-001']];
+  const g3 = createGas(require('./paths').APP, tabs, { libDir: path.join(__dirname, 'fixtures', 'library'), libId: LIB_ID });
+  g3.ctx.console = { log() {}, warn() {}, error: console.error, info() {} };
+  const u = g3.admin('doUpdate'), names = g3.ctx.SpreadsheetApp.openById('x').getSheets().map(x => x.getName());
+  check(/done/.test(u.status) && names.includes('_old_Class_Sessions') && names.includes('_old_Class_Queue') && !names.includes('Class_Sessions') && g3.table('_old_Class_Sessions').length === 1 && g3.ctx.SpreadsheetApp.openById('x').getSheetByName('_old_Class_Sessions').isSheetHidden(),
+        'old Class_* tabs renamed to _old_Class_… (rows kept), hidden; update done');
+  check(!Object.keys(g3.ctx.SETTINGS_DEFAULTS_).includes('class_poll_sec'), 'class_poll_sec is not a Settings default');
+}
+
 console.log(`\nteacher_session_test: ${P} passed, ${F} failed`);
 process.exit(F ? 1 : 0);

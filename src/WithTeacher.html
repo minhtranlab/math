@@ -199,7 +199,6 @@ $('#tq-ans').addEventListener('click', function () {
   if (on) { typeset(k); penSize(); }
 });
 $('#tq-next').addEventListener('click', nextPanel);
-$('#tq-snap').addEventListener('click', function () { snapshot($('#tq-work'), this).catch(function () {}); });
 $('#tq-nextpanel').addEventListener('change', function (ev) { if (ev.target.matches('#nx-sub')) { W.cands.sub = ev.target.value; nextList(); } });
 $('#tq-nextpanel').addEventListener('click', function (ev) {
   var t;

@@ -20,7 +20,7 @@
 var SHEET_ID = '1EPtPXzl8hsxJU1IVe5V7ud_SrlyB4GHqdb_cy2G-ufM';          // "MSB – Data" (My Drive › 📚 Academics › Math Skill Bank)
 var LIBRARY_FOLDER_ID = '1c9Mz7_tKbQ5-qZOSu2nxNR8TnAhi0-P3';             // "MSB - Library" (private): questions/<BATCH>.json
 var APP_NAME = 'Math Skill Bank';
-var APP_VERSION = 'v0.4.0 (2026-11-27, #9 v2 Practise with teacher: Live + Refresh, Assign next, pen, calculator, notes, More space, Snapshot)';
+var APP_VERSION = 'v0.4.1 (2026-11-27, #13 TRIG1 live; Practise with teacher starts at the teacher level; Snapshot for students; old Class tabs hidden)';
 var APP_BUILD = 'dev';  // replaced by the GitHub Action with the commit id → the Sheet update (Update.gs) runs once per deploy
 
 /* ============================== web app ============================== */

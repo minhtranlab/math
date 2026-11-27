@@ -24,19 +24,30 @@ function tsSubs_(ts) {
   var i = list.indexOf(clean_(ts.begin_sub));
   return i > 0 ? list.slice(i).concat(list.slice(0, i)) : list;
 }
-function tsLevel_(ts, code, sub) {                                             // the higher of the teacher's start level and the student's level
-  var p = progressOf_(code, sub).level, t = clean_(ts.level).toUpperCase();
-  return /^[EMH]$/.test(t) && lvIdx_(t) > lvIdx_(p) ? t : p;
+/** Level to serve in a sub-skill (#13, BRAIN §5 #32): starts at EXACTLY the teacher's level; inside this assignment the
+ *  same rule as Practice moves it up (step credit of this assignment's answers at ≥ that level; steps_to_move_up → next
+ *  level; H is the top). The student's own progress (mastery) is not changed by this — it follows the normal replay. */
+function tsLevel_(ts, code, sub, mine) {
+  var t = clean_(ts.level).toUpperCase(); if (!/^[EMH]$/.test(t)) return progressOf_(code, sub).level;
+  var sid = clean_(ts.session_id), need = Number(getSettings_().steps_to_move_up) || 3, lv = lvIdx_(t), steps = 0;
+  (mine || attemptsOf_(code)).filter(function (a) { return clean_(a.session_id) === sid && clean_(a.subskill) === String(sub) && clean_(a.status) === 'done'; })
+    .sort(function (a, b) { return toMs_(a.finished_at) - toMs_(b.finished_at) || a._row - b._row; })
+    .forEach(function (a) {
+      if (lv >= 2 || lvIdx_(a.difficulty) < lv) return;
+      steps += stepCredit_(clean_(a.result), clean_(a.pace) === 'slow');
+      if (steps >= need) { lv++; steps = 0; }
+    });
+  return LV_[lv];
 }
 /** What to serve next in an assignment: the teacher's chosen question (begin question first, then Assign next), else the
  *  first not-solid scope sub-skill that has live questions, at tsLevel_. */
 function tsPick_(ts, code, mine) {
   var sid = clean_(ts.session_id), used = mine.filter(function (a) { return clean_(a.session_id) === sid; });
   var forced = clean_(ts.next_qid) || (!used.length ? clean_(ts.begin_qid) : '');
-  if (forced) { var fr = questionRow_(forced); if (fr && clean_(fr.status) === 'live') return { sub: clean_(fr.subskill), level: tsLevel_(ts, code, clean_(fr.subskill)), qid: forced }; }
+  if (forced) { var fr = questionRow_(forced); if (fr && clean_(fr.status) === 'live') return { sub: clean_(fr.subskill), level: tsLevel_(ts, code, clean_(fr.subskill), mine), qid: forced }; }
   var live = liveBySub_(), subs = tsSubs_(ts), withQ = subs.filter(function (u) { return live[u]; });
   if (!withQ.length) return { msg: 'No questions here yet.' };
-  for (var i = 0; i < withQ.length; i++) if (!progressOf_(code, withQ[i]).solid) return { sub: withQ[i], level: tsLevel_(ts, code, withQ[i]) };
+  for (var i = 0; i < withQ.length; i++) if (!progressOf_(code, withQ[i]).solid) return { sub: withQ[i], level: tsLevel_(ts, code, withQ[i], mine) };
   return { done_all: true, msg: 'Every sub-skill here is solid.' };
 }
 /** A chosen question was served: Assign next is used up (the begin question is used up by the first attempt itself). */

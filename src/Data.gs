@@ -220,6 +220,18 @@ function dataEnsureTab_(tab, cols) {
   }
   return { made: made, added: miss.length };
 }
+/** Tabs the app no longer uses (26/11 Class mode): renamed to _old_<name> and hidden — never deleted, rows kept (#13). */
+var RETIRED_TABS_ = ['Class_Sessions', 'Class_Queue', 'Class_Events'];
+function dataRetireOldTabs_() {
+  var ss = ss_(), done = [];
+  RETIRED_TABS_.forEach(function (n) {
+    var sh = ss.getSheetByName(n);
+    if (!sh || ss.getSheetByName('_old_' + n)) return;
+    sh.setName('_old_' + n); try { sh.hideSheet(); } catch (e) {}
+    done.push(n);
+  });
+  return done;
+}
 function dataHeaders_(tab) { checkTab_(tab); return headers_(tab); }
 /** Write a text tab (README): column A lines, first line bold. */
 function dataWriteText_(tab, lines) {
