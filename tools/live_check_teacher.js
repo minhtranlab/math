@@ -58,8 +58,8 @@ async function answerSomething(f) { if (await f.$('#q-num')) { await f.fill('#q-
   let want = '';
   for (const sub of await t.$$eval('#nx-sub option', o => o.map(x => x.value))) {
     for (const L of ['E', 'M', 'H']) {
-      await t.selectOption('#nx-sub', sub); await t.click('[data-nxlv="' + L + '"]'); await tp.waitForTimeout(300);
-      await t.waitForSelector('#nx-list .cand, #nx-list .empty', W);
+      if (await t.$eval('#nx-sub', e => e.value) !== sub) { await t.selectOption('#nx-sub', sub); await t.waitForSelector('#nx-list .cand, #nx-list .empty', W); }
+      await t.click('[data-nxlv="' + L + '"]'); await t.waitForSelector('#nx-list .cand, #nx-list .empty', W);
       want = (await t.$$eval('[data-nxpick]', xs => xs.map(x => x.getAttribute('data-nxpick')))).filter(x => x !== q1)[0] || '';
       if (want) break;
     }

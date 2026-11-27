@@ -148,9 +148,10 @@ function nextPanel() {
   nextList();
 }
 function nextList() {
+  var my = W.cands.req = (W.cands.req || 0) + 1, el = function () { return my === W.cands.req && $('#nx-list'); };   // only the latest answer is shown
   $('#nx-list').innerHTML = '<div class="spinner"></div>';
-  API.tsCandidates(S.teacher, W.live.code, W.cands.sub, W.cands.level).then(function (r) { $('#nx-list').innerHTML = candHtml(r.items, 'data-nxpick'); })
-    .catch(function (e) { $('#nx-list').innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p>'; });
+  API.tsCandidates(S.teacher, W.live.code, W.cands.sub, W.cands.level).then(function (r) { var l = el(); if (l) l.innerHTML = candHtml(r.items, 'data-nxpick'); })
+    .catch(function (e) { var l = el(); if (l) l.innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p>'; });
 }
 
 /* ---------------- events ---------------- */
