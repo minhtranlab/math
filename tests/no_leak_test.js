@@ -29,7 +29,7 @@ for (const f of files) {
   if (/\bSMP-\d{3}\b/.test(s) && f !== 'tests/no_leak_test.js') bad(f, 'SAMPLE qid in the repo');
   // 2b. the GitHub Pages wrapper: only index.html + icons; it loads the app, it never carries data
   if (f.startsWith('site/')) {
-    if (!/^site\/(index\.html|icon\.svg)$/.test(f)) bad(f, 'site/ holds only index.html + icons');
+    if (!/^site\/(index\.html|icon\.svg|manifest\.webmanifest)$/.test(f)) bad(f, 'site/ holds only index.html, the manifest + icons');
     if (/stem_html|"key"\s*:|data:image\/png/.test(s)) bad(f, 'question data / key / figure on the Pages site');
     if ((s.match(/https?:\/\/[^\s"'<>)]+/g) || []).some(u => !/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$|^http:\/\/www\.w3\.org\//.test(u))) bad(f, 'the Pages site loads something other than the app link');
   }
@@ -47,7 +47,7 @@ for (const f of files) {
   if (/"refresh_token"\s*:\s*"[^"]{10,}/.test(s)) bad(f, 'refresh_token value');
   if (/GOCSPX-[A-Za-z0-9_-]{10,}/.test(s)) bad(f, 'OAuth client secret');
   if (/teacher_code['"]?\s*[:=,]\s*['"][A-Z0-9][A-Z0-9-]{3,}['"]/.test(s) && !/^tests\//.test(f)) bad(f, 'a teacher code value');
-  for (const m of s.match(/\b[0-9a-f]{32}\b/g) || []) bad(f, '32-hex string (API key?) ' + m.slice(0, 6) + '…');
+  for (const m of s.match(/\b[0-9a-f]{32}\b/g) || []) if (m !== 'dcb31709b452b1cf9dc26972add0fda6') bad(f, '32-hex string (API key?) ' + m.slice(0, 6) + '…');   // the public Desmos demo key is allowed
   if (s.length > 400 * 1024 && !inFixtures) bad(f, 'file > 400 KB');
 }
 // Apps Script refuses two files with the same name (Teacher.gs + Teacher.html → clasp push fails)

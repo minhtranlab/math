@@ -1,0 +1,159 @@
+<script>
+/* ===================== MSB — question-screen tools (students AND teacher) =====================
+   Pen (Pen.html) · Calculator (Desmos graphing + scientific, like SAT Math Lib) · Notes (math lines with MathQuill, text lines;
+   idea from SML go-over Notes, kept per question in this browser tab) · More space (blank writing area below the question,
+   press again for more; the pen covers it) · Snapshot (teacher: question + ink + blank area as one PNG, html2canvas).
+   Panels float (drag by the title bar). Everything loads only when first used. LIGHT ONLY. */
+var TL = { host: null, notes: {}, notesKey: '', mq: null, calc: null, sci: null, loading: {} };
+function loadJs(src) { return new Promise(function (ok, no) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = function () { no(new Error('Could not load ' + src)); }; document.head.appendChild(s); }); }
+function loadOnce(name, fn) { if (!TL.loading[name]) { TL.loading[name] = fn(); TL.loading[name].catch(function () { TL.loading[name] = null; }); } return TL.loading[name]; }
+
+/** The active work area (#q-work or #tq-work): pen host + "More space" target. Called by both screens on each new question. */
+function toolsHost(hostId, notesKey) {
+  var host = document.getElementById(hostId);
+  host.querySelector('.spaces').innerHTML = '';
+  penSet(false); penAttach(host);
+  notesSave(); TL.notesKey = notesKey || ''; notesRender();
+  TL.host = host;
+}
+/** Leaving the question screens: pen off, panels closed (they float over every screen). */
+function toolsOff() {
+  penSet(false); notesSave();
+  ['calc-panel', 'notes-panel'].forEach(floatClose); $('#snap').classList.add('hidden');
+  $$('[data-tool="calc"],[data-tool="notes"]').forEach(function (b) { b.classList.remove('on'); });
+}
+function moreSpace(host) {
+  host = host || TL.host; if (!host) return;
+  var d = document.createElement('div'); d.className = 'blank'; host.querySelector('.spaces').appendChild(d);
+  penSize();
+}
+
+/* ---------- floating panels ---------- */
+function floatOpen(id) {
+  var p = document.getElementById(id); p.classList.remove('hidden');
+  if (!p._placed) { p._placed = 1; var w = Math.min(440, window.innerWidth - 24); p.style.width = w + 'px'; p.style.left = (id === 'notes-panel' ? 12 : Math.max(12, window.innerWidth - w - 16)) + 'px'; p.style.top = (id === 'notes-panel' ? Math.max(80, window.innerHeight - 360) : 80) + 'px'; }
+}
+function floatClose(id) { document.getElementById(id).classList.add('hidden'); }
+(function dragging() {
+  var drag = null;
+  document.addEventListener('pointerdown', function (e) {
+    var h = e.target.closest('[data-drag]'); if (!h || e.target.closest('button')) return;
+    var p = document.getElementById(h.getAttribute('data-drag')), r = p.getBoundingClientRect();
+    drag = { p: p, dx: e.clientX - r.left, dy: e.clientY - r.top }; try { h.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault();
+  });
+  document.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    drag.p.style.left = Math.max(0, Math.min(window.innerWidth - 80, e.clientX - drag.dx)) + 'px';
+    drag.p.style.top = Math.max(0, Math.min(window.innerHeight - 40, e.clientY - drag.dy)) + 'px';
+  });
+  document.addEventListener('pointerup', function () { drag = null; });
+})();
+
+/* ---------- calculator (Desmos; key from Settings via MSB_CFG, empty = demo key) ---------- */
+function loadDesmos() { return loadOnce('desmos', function () { return window.Desmos ? Promise.resolve() : loadJs('https://www.desmos.com/api/v1.11/calculator.js?apiKey=' + ((window.MSB_CFG || {}).desmos || '')); }); }
+function calcOpen() {
+  floatOpen('calc-panel'); $$('[data-tool="calc"]').forEach(function (b) { b.classList.add('on'); });
+  if (TL.calc) return;
+  $('#calc-msg').textContent = 'Loading calculator…';
+  loadDesmos().then(function () {
+    $('#calc-msg').textContent = '';
+    if (!TL.calc) TL.calc = Desmos.GraphingCalculator($('#calc-graph'), { keypad: true, expressions: true, settingsMenu: true, zoomButtons: true, border: false });
+  }).catch(function () { $('#calc-msg').textContent = 'The calculator could not load. Check the internet, then close and open it again.'; });
+}
+function calcMode(m) {
+  $('#calc-g').classList.toggle('on', m === 'g'); $('#calc-s').classList.toggle('on', m === 's');
+  $('#calc-graph').classList.toggle('hidden', m !== 'g'); $('#calc-sci').classList.toggle('hidden', m !== 's');
+  if (m === 's' && !TL.sci && window.Desmos) TL.sci = Desmos.ScientificCalculator($('#calc-sci'));
+  try { if (TL.calc) TL.calc.resize(); if (TL.sci) TL.sci.resize(); } catch (e) {}
+}
+
+/* ---------- notes (MathQuill math lines + text lines; one pad per question, kept in this tab) ---------- */
+var MQ_URL = 'https://cdn.jsdelivr.net/npm/mathquill@0.10.1/build/', JQ_URL = 'https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js';
+function loadMQ() {
+  return loadOnce('mq', function () {
+    var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = MQ_URL + 'mathquill.css'; document.head.appendChild(l);
+    var had$ = window.$, hadJ = window.jQuery;
+    return loadJs(JQ_URL).then(function () { return loadJs(MQ_URL + 'mathquill.min.js'); }).then(function () {
+      TL.mq = window.MathQuill.getInterface(2);
+      try { window.jQuery.noConflict(true); } catch (e) {}                     // MathQuill keeps its own jQuery; our $ stays ours
+      window.$ = had$; if (hadJ !== undefined) window.jQuery = hadJ; else { try { delete window.jQuery; } catch (e) { window.jQuery = undefined; } }
+      return TL.mq;
+    });
+  });
+}
+function notesSave() {
+  if (!TL.notesKey) return;
+  TL.notes[TL.notesKey] = $$('#notes-lines .nl').map(function (el) { return el._mf ? { m: el._mf.latex() } : { t: el.querySelector('textarea').value }; });
+}
+function notesRender() {
+  var box = $('#notes-lines'); if (!box) return;
+  box.innerHTML = '';
+  (TL.notes[TL.notesKey] || []).forEach(function (l) { notesAdd(l.m !== undefined ? 'm' : 't', l.m !== undefined ? l.m : l.t, true); });
+}
+function notesAdd(kind, val, quiet) {
+  var el = document.createElement('div'); el.className = 'nl ' + (kind === 'm' ? 'nm' : 'nt');
+  $('#notes-lines').appendChild(el);
+  if (kind === 't') { el.innerHTML = '<textarea rows="1" placeholder="Text"></textarea>'; var ta = el.querySelector('textarea'); ta.value = val || ''; if (!quiet) ta.focus(); return el; }
+  el.innerHTML = '<span class="mqf"></span>';
+  var make = function (MQ) {
+    var mf = MQ.MathField(el.querySelector('.mqf'), { spaceBehavesLikeTab: true, handlers: { enter: function () { notesAdd('m'); notesSave(); } } });
+    el._mf = mf; if (val) mf.latex(val); if (!quiet) mf.focus();
+  };
+  if (TL.mq) make(TL.mq);
+  else { $('#notes-msg').textContent = 'Loading math typing…'; loadMQ().then(function (MQ) { $('#notes-msg').textContent = ''; make(MQ); })
+    .catch(function () { el.className = 'nl nt'; el.innerHTML = '<textarea rows="1"></textarea>'; el.querySelector('textarea').value = val || ''; $('#notes-msg').textContent = 'Math typing could not load — plain text.'; }); }
+  return el;
+}
+function notesOpen() {
+  floatOpen('notes-panel'); $$('[data-tool="notes"]').forEach(function (b) { b.classList.add('on'); });
+  if (!$$('#notes-lines .nl').length) notesAdd('m');
+}
+
+/* ---------- snapshot (teacher): question + ink + blank area → PNG ---------- */
+function loadH2C() { return loadOnce('h2c', function () { return window.html2canvas ? Promise.resolve() : loadJs('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'); }); }
+function snapshot(host, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Snapshot…'; }
+  var done = function () { if (btn) { btn.disabled = false; btn.textContent = 'Snapshot'; } };
+  return loadH2C().then(function () {
+    penSize();
+    return html2canvas(host, { backgroundColor: '#ffffff', scale: Math.min(2, window.devicePixelRatio || 1) + 0.5, useCORS: true, logging: false,
+      onclone: function (doc) { doc.documentElement.classList.add('snapping'); } });   // inset shadows → borders; teacher-only state line hidden
+  }).then(function (cv) {
+    var url = cv.toDataURL('image/png');
+    $('#snap-img').src = url; $('#snap-dl').href = url;
+    $('#snap-dl').download = 'question_' + (new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')) + '.png';
+    TL.snapBlob = null; cv.toBlob(function (b) { TL.snapBlob = b; });
+    var canShare = !!(navigator.canShare && window.File);
+    $('#snap-share').classList.toggle('hidden', !canShare);
+    $('#snap').classList.remove('hidden'); done();
+    return url;
+  }).catch(function (e) { done(); alertTool('Snapshot did not work here — use the iPad screenshot.'); throw e; });
+}
+function alertTool(m) { var el = $('#tq-info') || $('#q-cnt'); if (el) el.insertAdjacentHTML('beforeend', ' <span class="err">' + esc(m) + '</span>'); }
+
+document.addEventListener('click', function (ev) {
+  var t = ev.target.closest('[data-tool]');
+  if (t) {
+    var host = document.getElementById(t.closest('.tools').getAttribute('data-host')), k = t.getAttribute('data-tool');
+    if (k === 'pen') { if (PEN.host !== host) penAttach(host); penSet(!PEN.on); }
+    else if (k === 'calc') { if ($('#calc-panel').classList.contains('hidden')) calcOpen(); else { floatClose('calc-panel'); $$('[data-tool="calc"]').forEach(function (b) { b.classList.remove('on'); }); } }
+    else if (k === 'notes') { if ($('#notes-panel').classList.contains('hidden')) notesOpen(); else { notesSave(); floatClose('notes-panel'); $$('[data-tool="notes"]').forEach(function (b) { b.classList.remove('on'); }); } }
+    else if (k === 'space') moreSpace(host);
+    return;
+  }
+  var c = ev.target.closest('[data-close]');
+  if (c) { var w = c.getAttribute('data-close'); if (w === 'notes') notesSave(); floatClose(w + '-panel'); $$('[data-tool="' + w + '"]').forEach(function (b) { b.classList.remove('on'); }); return; }
+  if (ev.target.closest('#calc-g')) { calcMode('g'); return; }
+  if (ev.target.closest('#calc-s')) { calcMode('s'); return; }
+  if (ev.target.closest('#notes-math')) { notesAdd('m'); return; }
+  if (ev.target.closest('#notes-text')) { notesAdd('t'); return; }
+  if (ev.target.closest('#notes-clear')) { $('#notes-lines').innerHTML = ''; notesSave(); return; }
+  if (ev.target.closest('#snap-close')) { $('#snap').classList.add('hidden'); return; }
+  if (ev.target.closest('#snap-share')) {
+    var f = TL.snapBlob && new File([TL.snapBlob], 'question.png', { type: 'image/png' });
+    if (f && navigator.canShare && navigator.canShare({ files: [f] })) navigator.share({ files: [f] }).catch(function () {});
+    else $('#snap-share').textContent = 'Share not allowed here — press and hold the picture';
+  }
+});
+document.addEventListener('input', function (ev) { if (ev.target.closest('#notes-lines')) { clearTimeout(TL.ns); TL.ns = setTimeout(notesSave, 400); } });
+</script>

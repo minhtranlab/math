@@ -3,6 +3,9 @@
   "private": true,
   "description": "Math Skill Bank test harness: Apps Script mock (gas.js) + Playwright browser tests. See tests/README.md.",
   "dependencies": {
-    "mathjax": "3.2.2"
+    "mathjax": "3.2.2",
+    "html2canvas": "1.4.1",
+    "jquery": "3.7.1",
+    "mathquill": "0.10.1"
   }
 }

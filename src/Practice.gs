@@ -51,8 +51,8 @@ function homeData(code) {
   var st = requireStudent_(code);
   var pp = pathProgress_(code), att = attemptsOf_(code).filter(function (a) { return clean_(a.status) === 'done'; });
   var rv = openReview_(code).map(function (r) { return { qid: clean_(r.qid), subskill: subskillName_(clean_(r.subskill)), added: dateStr_(r.added_at) }; });
-  var nx = nextPathSub_(pp.path), cl = clOpenFor_(code);
-  return { class_open: cl ? { session_id: clean_(cl.session_id), title: clean_(cl.title) } : null, name: String(st.name || ''), path: pp.path, skills: pp.skills, next: nx, next_name: nx ? subskillName_(nx) : '',
+  var nx = nextPathSub_(pp.path), ts = tsOpenFor_(code);
+  return { teacher_open: ts ? tsCard_(ts, code) : null, name: String(st.name || ''), path: pp.path, skills: pp.skills, next: nx, next_name: nx ? subskillName_(nx) : '',
            sample_n: pp.path.length ? 0 : livePool_().length, review: rv, n_done: att.length };
 }
 
@@ -66,13 +66,18 @@ function triesOf_(attemptId) {
   return dataFilter_(TAB.TRIES, function (r) { return clean_(r.attempt_id) === String(attemptId); })
     .sort(function (a, b) { return Number(a.try_no) - Number(b.try_no); });
 }
-function maxTries_() { return Math.max(1, Number(getSettings_().max_tries) || 2); }
+/** Tries per question: Practice 2 (max_tries) · Practise with teacher 3 (class_max_tries, BRAIN #31). */
+function maxTries_(a) {
+  var st = getSettings_();
+  if (a && clean_(a.kind) === 'teacher') return Math.max(1, Number(st.class_max_tries) || 3);
+  return Math.max(1, Number(st.max_tries) || 2);
+}
 
 /** The open question payload (also used to resume after a reload). */
 function questionPayload_(a, q, scope) {
   var tries = triesOf_(a.attempt_id).map(function (t) { return { try_no: Number(t.try_no), answer: clean_(t.answer), correct: isYes_(t.correct) }; });
   return { ok: true, attempt_id: clean_(a.attempt_id), scope: scope, q: clientQuestion_(q), subskill: subskillName_(clean_(a.subskill)),
-           k: encKey_(answerSpec_(q), clean_(a.attempt_id) + '|' + q.qid), max_tries: maxTries_(), tries: tries,
+           k: encKey_(answerSpec_(q), clean_(a.attempt_id) + '|' + q.qid), max_tries: maxTries_(a), tries: tries,
            hint_used: isYes_(a.hint_used), hint_html: isYes_(a.hint_used) ? (q.hint_html || '') : '' };
 }
 
@@ -83,13 +88,20 @@ function nextQuestion(code, opts) {
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     requireStudent_(code);
-    var scope = opts.review ? 'review' : opts.subskill ? 'sub:' + String(opts.subskill) : 'path';
+    var ts = opts.teacher ? tsOpenFor_(code) : null;
+    if (opts.teacher && (!ts || clean_(ts.session_id) !== String(opts.teacher))) return { ok: false, empty: true, msg: 'Your teacher has closed this practice.' };
+    var scope = ts ? 'teacher:' + clean_(ts.session_id) : opts.review ? 'review' : opts.subskill ? 'sub:' + String(opts.subskill) : 'path';
     var mine = attemptsOf_(code);
     var open = mine.filter(function (a) { return clean_(a.status) === 'open' && clean_(a.scope) === scope; })[0];
     if (open) { var oq = libQuestion_(clean_(open.qid)); if (oq) return questionPayload_(open, oq, scope); }
     // pool for this scope (path = one sub-skill at a time: the first not-solid sub-skill with questions)
-    var pool = livePool_(), kind = 'practice', sub = '', level = '';
-    if (opts.review) {
+    var pool = livePool_(), kind = 'practice', sub = '', level = '', forced = null;
+    if (ts) {                                                                  // Practise with teacher (#9 v2)
+      var pk = tsPick_(ts, code, mine);
+      if (!pk.sub) return { ok: false, empty: true, done_all: pk.done_all, msg: pk.msg };
+      kind = 'teacher'; sub = pk.sub; level = pk.level; forced = pk.qid;
+      pool = pool.filter(function (r) { return clean_(r.subskill) === sub; });
+    } else if (opts.review) {
       var want = {}; openReview_(code).forEach(function (r) { want[clean_(r.qid)] = 1; });
       pool = pool.filter(function (r) { return want[clean_(r.qid)]; }); kind = 'review';
     } else {
@@ -103,12 +115,15 @@ function nextQuestion(code, opts) {
     if (!pool.length) return { ok: false, empty: true, msg: opts.review ? 'Your review list is empty.' : 'No questions here yet.' };
     var lastDone = mine.filter(function (x) { return clean_(x.status) === 'done'; }).sort(function (x, y) { return toMs_(x.finished_at) - toMs_(y.finished_at) || x._row - y._row; }).slice(-1)[0];
     pool = orderPool_(pool, mine, level, opts.after || (lastDone ? clean_(lastDone.qid) : ''));
-    var pick = pool[0], q = libQuestion_(clean_(pick.qid));
+    var pick = pool[0];
+    if (forced) { var fr = questionRow_(forced); if (fr) { pick = fr; sub = clean_(fr.subskill); level = progressOf_(code, sub).level; } }
+    var q = libQuestion_(clean_(pick.qid));
     if (!q) return { ok: false, empty: true, msg: 'This question could not be loaded. Tell your teacher.' };
     var a = { attempt_id: newId_('A'), student_code: normCode_(code), kind: kind, scope: scope, qid: q.qid, subskill: txt_(clean_(pick.subskill)),
               skill: txt_(clean_(pick.skill)), difficulty: clean_(pick.difficulty), started_at: nowIso_(), status: 'open', n_tries: 0, n_hints: 0,
-              device: txt_(String(opts.device || '').slice(0, 40)), level_at_start: level };
+              device: txt_(String(opts.device || '').slice(0, 40)), level_at_start: level, session_id: ts ? clean_(ts.session_id) : '' };
     dataAppend_(TAB.ATTEMPTS, [a]);
+    if (ts && forced) tsUsed_(ts, forced);
     a.attempt_id = String(a.attempt_id); a.subskill = clean_(pick.subskill);
     var done = mine.filter(function (x) { return clean_(x.status) === 'done'; }).length;
     var out = questionPayload_(a, q, scope); out.n_done = done; out.pool_n = pool.length;
@@ -176,12 +191,7 @@ function submitTry(code, attemptId, answer, timeSec, clientSaid) {
   try {
     requireStudent_(code);
     var a = attemptRow_(code, attemptId);
-    var tries = triesOf_(attemptId), max = maxTries_(), cls = clean_(a.kind) === 'class' ? clSession_(clean_(a.session_id), false) : null;
-    if (cls) {                                                                 // Class mode (#9): session tries, pause, ended
-      max = clMaxTries_(cls);
-      if (clean_(cls.status) !== 'open') return { ok: false, finished: true, msg: 'This class has ended.' };
-      if (clPaused_(clEvents_(clean_(cls.session_id)), code)) return { ok: false, paused: true, msg: 'Your teacher is going over this question.' };
-    }
+    var tries = triesOf_(attemptId), max = maxTries_(a);
     if (clean_(a.status) !== 'open' || tries.length >= max) return { ok: false, finished: true, msg: 'This question is already finished.' };
     answer = String(answer === undefined || answer === null ? '' : answer).trim().slice(0, 40);
     if (!answer) return { ok: false, msg: 'Type an answer first.' };
@@ -199,8 +209,7 @@ function submitTry(code, attemptId, answer, timeSec, clientSaid) {
     var times = tries.map(function (t) { return Number(t.time_sec) || 0; }).concat([sec]);
     var ans1 = tries.length ? Number(tries[0].time_answer_sec === '' || tries[0].time_answer_sec === undefined ? tries[0].time_sec : tries[0].time_answer_sec) || 0 : tm.answer;
     var t1 = ans1, slowAt = slowAbove_(a.difficulty, q.type), result = correct ? (tryNo === 1 ? 'right_1' : 'right_2') : 'wrong_2';
-    var slow = t1 > slowAt, credit = stepCredit_(result, slow);
-    if (cls && isYes_(a.helped)) credit = 0;                                   // BRAIN #20: teacher helped before the 1st try → no step
+    var slow = t1 > slowAt, credit = stepCredit_(result, slow);             // Practise with teacher counts exactly like Practice (BRAIN #31)
     var track = clean_(a.kind) !== 'sample' && clean_(a.subskill), before = track ? progressOf_(code, clean_(a.subskill)) : null;
     dataUpdate_(TAB.ATTEMPTS, a._row, { status: 'done', finished_at: nowIso_(), n_tries: tryNo, try1_correct: tryNo === 1 && correct ? 'Yes' : 'No',
       correct: correct ? 'Yes' : 'No', result: result, answer_shown: correct ? '' : 'Yes', time_try1_sec: t1,

@@ -17,7 +17,7 @@ function initialTabs() {
     Students: [['student_code', 'name', 'active', 'classes', 'created_in', 'created_at', 'note'],
       ['FX-T01', 'Tess Test', 'Yes', '', 'sheet', '', 'fixture'], ['FX-T02', 'Locked Test', 'No', '', 'sheet', '', 'fixture'],
       ['FX-T03', 'Pat Path', 'Yes', '', 'sheet', '', 'fixture']],
-    Settings: [['key', 'value', 'meaning'], ['teacher_code', TEACHER, ''], ['class_poll_sec', 1, 'fast polls in tests']],
+    Settings: [['key', 'value', 'meaning'], ['teacher_code', TEACHER, '']],
     Paths: [['student_code', 'target_type', 'target_id', 'active', 'added_at', 'added_by', 'note'],
       ['FX-T03', 'skill', 'TRIG.RT', 'Yes', '', 'test', ''], ['FX-T03', 'subskill', 'TRIG.BR.READ', 'Yes', '', 'test', '']]
   };
@@ -38,6 +38,7 @@ function page(g) {
     return s;
   });
   html = html.replace(/<\?!=\s*gradeClientJs_\(\);?\s*\?>/g, () => g.ctx.gradeClientJs_());
+  html = html.replace(/<\?!=\s*pageConfigJs_\(\);?\s*\?>/g, () => g.ctx.pageConfigJs_());
   if (/<\?/.test(html)) throw new Error('unresolved template tag in Index.html');
   return html;
 }

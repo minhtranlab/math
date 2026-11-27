@@ -147,33 +147,58 @@ h2.h2:first-child { margin-top: 4px; }
 .cellb.pr { background: #fff4d6; color: var(--warn); } .cellb.so { background: var(--green-soft); color: var(--green); } .cellb.off { background: #fff; color: var(--faint); box-shadow: inset 0 0 0 1px var(--line2); }
 .cellb small { display: block; font-weight: 600; font-size: 11px; }
 .grid tr.sk td { font: 700 14px var(--disp); padding-top: 14px; }
-.panel { margin-top: 18px; border: 1.5px solid var(--acc-faint); border-radius: 14px; padding: 16px 18px; }
+.panel, .nxpanel { margin-top: 18px; border: 1.5px solid var(--acc-faint); border-radius: 14px; padding: 16px 18px; }
 .panel h3 { font: 700 18px var(--disp); margin-bottom: 6px; }
 .ok-t { color: var(--green); } .no-t { color: var(--red); }
 
-/* ---------- Class mode ---------- */
-.clsbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: var(--acc-soft); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; }
-.clsbar b { color: var(--acc-dark); }
-.msg { display: block; width: 100%; background: #fff; border-left: 4px solid var(--acc); border-radius: 0 10px 10px 0; padding: 8px 12px; margin-top: 6px; font-weight: 600; }
-.qwrap-in { position: relative; }
-.pausecover { position: absolute; inset: 0; background: rgba(255,255,255,.94); border-radius: 18px; display: flex; align-items: center; justify-content: center; text-align: center; z-index: 5; }
-.pausecover b { display: block; font: 800 24px var(--disp); margin-bottom: 6px; }
-.pausecover span { color: var(--muted); }
-.wait { text-align: center; padding: 40px 0; color: var(--muted); }
-.live td { vertical-align: middle; }
-.st-working { color: var(--warn); font-weight: 700; } .st-right { color: var(--green); font-weight: 700; } .st-wrong, .st-revealed { color: var(--red); font-weight: 700; } .st-waiting { color: var(--faint); }
-.typed { font: 600 16px var(--sans); background: var(--bg-2); border-radius: 8px; padding: 2px 8px; }
-.qrow { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 4px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line2); }
-.qrow .acts { grid-column: 2; }
-.qrow.pushed { opacity: .55; }
-.qrow .acts { display: flex; gap: 4px; flex-wrap: wrap; }
+/* ---------- question tools (#9 v2): pen · calculator · notes · More space · Snapshot ---------- */
 .mini { border: 1.5px solid var(--line); background: #fff; border-radius: 8px; padding: 3px 9px; font: 600 13px var(--sans); }
 .mini:hover:not(:disabled) { border-color: var(--acc); }
 .mini.on { border-color: var(--acc); background: var(--acc-soft); }
-.addq { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
-.addq select { border: 1.5px solid var(--line); border-radius: 10px; padding: 7px 10px; font: 500 14px var(--sans); background: #fff; max-width: 420px; }
-.cls-cols { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); gap: 24px; align-items: start; }
-.penbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 8px 48px; background: var(--bg-2); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 6; }
+.tsbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--acc-soft); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; font-size: 15px; }
+.tsbar b { color: var(--acc-dark); }
+.tsbar .stamp { color: var(--faint); font-size: 13px; }
+.tsbar .nextq { color: var(--warn); font-weight: 700; }
+.tools { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+.tool { border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 14px; font: 600 14px var(--sans); color: var(--ink); }
+.tool:hover:not(:disabled) { border-color: var(--acc); }
+.tool.on { border-color: var(--acc); background: var(--acc-soft); color: var(--acc-dark); }
+.work { position: relative; background: #fff; }
+.spaces .blank { height: 420px; margin-top: 12px; border: 1.5px dashed var(--line); border-radius: 18px; background: #fff; }
+.card.tcard { border-color: var(--acc); background: var(--acc-soft); }
+.float { position: fixed; z-index: 30; background: #fff; border: 1.5px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px rgba(25,28,38,.18); max-width: calc(100vw - 16px); display: flex; flex-direction: column; }
+.fhead { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line2); cursor: move; touch-action: none; user-select: none; -webkit-user-select: none; }
+.fhead b { margin-right: auto; font: 700 15px var(--disp); }
+.fbody { padding: 8px 10px 10px; }
+.calcbox { width: 100%; height: 380px; }
+.nlines { max-height: 50vh; overflow-y: auto; display: grid; gap: 6px; }
+.nl { border: 1.5px solid var(--line); border-radius: 10px; padding: 6px 10px; min-height: 40px; }
+.nl .mq-editable-field, .nl .mqf { display: block; border: 0 !important; box-shadow: none !important; min-height: 26px; font-size: 18px; }
+.nl textarea { width: 100%; border: 0; outline: none; resize: vertical; font: 16px var(--sans); }
+.snapcover { position: fixed; inset: 0; z-index: 40; background: rgba(25,28,38,.45); display: flex; align-items: flex-start; justify-content: center; padding: 24px 12px; overflow-y: auto; }
+.snapbox { background: #fff; border-radius: 16px; padding: 14px 16px; max-width: 900px; width: 100%; }
+.snapbox img { width: 100%; border: 1px solid var(--line); border-radius: 8px; margin-top: 8px; -webkit-touch-callout: default; }
+.snapbox .btn { text-decoration: none; }
+.wbtns { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.seg { display: inline-flex; gap: 6px; margin: 4px 0; }
+.field.sel { flex: none; text-transform: none; letter-spacing: 0; font-size: 15px; padding: 8px 14px; max-width: 100%; }
+.panel .eyebrow { margin-top: 16px; }
+.small { font-size: 13px; }
+.cands { display: grid; gap: 6px; margin-top: 8px; }
+.cand { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 1px solid var(--line2); border-radius: 10px; padding: 8px 12px; }
+.cand .pv { color: var(--muted); font-size: 14px; }
+.okline { margin-top: 16px; background: var(--green-soft); color: var(--green); border-radius: 12px; padding: 10px 14px; font-weight: 600; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.tkey { margin-top: 18px; border-radius: 12px; padding: 12px 16px; background: var(--green-soft); }
+.tkey > .lab { color: var(--green); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; font-size: 13px; margin-right: 6px; }
+.tstate { margin-top: 16px; font-size: 15px; line-height: 1.8; }
+.tnum { display: inline-block; min-height: 50px; min-width: 220px; background: var(--bg-2); }
+#tq-card .ch { cursor: default; }
+.snapping .ch.sel, .snapping .ch.right { box-shadow: none !important; border-width: 3px; padding: 10.5px 14.5px; }
+.snapping .tstate { visibility: hidden; }
+#tq-info { display: block; line-height: 1.6; }
+.nxpanel { margin: 0 0 14px; }
+.penbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: center; padding: 8px 16px; background: var(--bg-2); border-bottom: 1px solid var(--line); position: fixed; top: 0; left: 0; right: 0; z-index: 25; box-shadow: 0 4px 14px rgba(25,28,38,.1); }
+.penbar[hidden] { display: none; }
 .penbar button { border: 1.5px solid var(--line); background: #fff; border-radius: 8px; padding: 5px 10px; font: 600 13px var(--sans); }
 .penbar button.on { border-color: var(--acc); background: var(--acc-soft); }
 .penbar .pc { width: 28px; height: 28px; padding: 0; border-radius: 50%; background: var(--c); }
@@ -183,8 +208,6 @@ h2.h2:first-child { margin-top: 4px; }
 .pen-on .pen-cv { pointer-events: auto; cursor: crosshair; touch-action: none; }
 .pen-on.finger-scrolls .pen-cv { touch-action: pan-x pan-y; }
 .pen-on { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.notes { margin-top: 14px; } .notes textarea { width: 100%; min-height: 140px; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px; font: 16px var(--sans); }
-.ansbox { margin-top: 16px; }
 
 @media (max-width: 700px) {
   .top { padding: 14px 16px; } .wm { font-size: 20px; }
@@ -197,7 +220,6 @@ h2.h2:first-child { margin-top: 4px; }
   .row.ms { grid-template-columns: minmax(0, 1fr) auto; }
   .row.ms .lad { grid-column: 1 / -1; }
   .qcard { padding: 20px 18px; }
-  .cls-cols { grid-template-columns: 1fr; }
-  .penbar { padding: 8px 16px; }
+  .calcbox { height: 320px; }
 }
 </style>

@@ -1,6 +1,6 @@
 <script>
 /* ===================== MSB — pen (copied from SAT Math Lib go-over pen, satmath@579fdb0 Client.html PEN; cut to one canvas)
-   Teacher tool for "Open on my screen" (Class mode). 4 colours (blue, red, green, yellow highlighter), thin / thick, eraser,
+   Question screen tool for students AND the teacher (Practice, Practise with teacher, Live). 4 colours (blue, red, green, yellow highlighter), thin / thick, eraser,
    undo, clear. iPad (SML #107): Apple Pencil draws at once, a finger scrolls; a finger draws only until a Pencil has been seen
    on this device — or always / never by the "✋ Finger draws" switch (kept on this device). Cleared on the next question. */
 var PEN = { on: false, color: 'blue', w: 1, tool: 'pen', strokes: [], hist: [], cv: null, host: null, penSeen: false };
@@ -13,6 +13,7 @@ function penFingerSync() {
   if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
 }
 function penAttach(host) {
+  if (PEN.host && PEN.host !== host) PEN.host.classList.remove('pen-on', 'finger-scrolls');
   penDetach(); PEN.host = host; host.classList.add('pen-host');
   var c = document.createElement('canvas'); c.className = 'pen-cv'; host.appendChild(c); PEN.cv = c; penBind(c); penSize(); penSync();
 }
@@ -68,7 +69,7 @@ function penSet(on) {
   PEN.on = !!on;
   if (PEN.host) PEN.host.classList.toggle('pen-on', PEN.on);
   var bar = document.getElementById('pen-bar'); if (bar) bar.hidden = !PEN.on;
-  var t = document.getElementById('tq-pen'); if (t) t.classList.toggle('on', PEN.on);
+  document.querySelectorAll('[data-tool="pen"]').forEach(function (t) { t.classList.toggle('on', PEN.on); });
   if (PEN.on) { penSize(); penFingerSync(); }
 }
 function penSync() {

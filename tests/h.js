@@ -14,8 +14,18 @@ async function routes(ctx) {
     const f = path.join(MJ, rel);
     if (fs.existsSync(f)) r.fulfill({ path: f, contentType: f.endsWith('.js') ? 'application/javascript' : undefined }); else r.continue();
   });
+  // the question tools' CDN files → the same versions from npm; Desmos → a small stand-in (its real script needs the network)
+  const NPM = { 'mathquill@0.10.1': 'mathquill', 'jquery@3.7.1': 'jquery', 'html2canvas@1.4.1': 'html2canvas' };
+  await ctx.route(/cdn\.jsdelivr\.net\/npm\/(mathquill|jquery|html2canvas)@/, r => {
+    const m = /\/npm\/([^/]+)\/(.*)$/.exec(new URL(r.request().url()).pathname), f = path.join(__dirname, 'node_modules', NPM[m[1]], m[2]);
+    if (fs.existsSync(f)) r.fulfill({ path: f, contentType: f.endsWith('.css') ? 'text/css' : 'application/javascript' }); else r.abort();
+  });
+  await ctx.route(/www\.desmos\.com\/api\//, r => r.fulfill({ contentType: 'application/javascript', body: DESMOS_STUB }));
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
 }
+const DESMOS_STUB = `window.DESMOS_URL = (document.currentScript || {}).src || '';
+window.Desmos = { GraphingCalculator: function (el) { el.innerHTML = '<div class="desmos-stub" style="padding:20px;border:1px dashed #999;height:100%">Desmos graphing (test stand-in)</div>'; return { resize: function () {} }; },
+  ScientificCalculator: function (el) { el.innerHTML = '<div class="desmos-stub">Desmos scientific (test stand-in)</div>'; return { resize: function () {} }; } };`;
 async function setup(opts = {}) {
   const port = opts.port || 8090 + Math.floor(Math.random() * 800);
   const { server, st } = await start(port);

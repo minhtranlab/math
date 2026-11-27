@@ -24,9 +24,7 @@ var TABS_ = [
   [TAB.ITEM_OVERRIDES, ['qid', 'difficulty', 'status', 'set_by', 'set_at', 'note']],
   [TAB.TIME_NORMS, ['difficulty', 'qtype', 'target_sec', 'slow_above_sec', 'note']],
   [TAB.LEVEL_OVERRIDES, ['student_code', 'subskill', 'set_to', 'set_by', 'set_at', 'note']],
-  [TAB.CLASS_SESSIONS, ['session_id', 'title', 'student_codes', 'status', 'max_tries', 'created_at', 'ended_at', 'note']],
-  [TAB.CLASS_QUEUE, ['session_id', 'item_id', 'pos', 'qid', 'subskill', 'difficulty', 'status', 'added_at', 'pushed_at', 'pushed_to', 'note']],
-  [TAB.CLASS_EVENTS, ['session_id', 'student_code', 'attempt_id', 'qid', 'type', 'value', 'at']],
+  [TAB.TEACHER_SESSIONS, ['session_id', 'student_code', 'subskills', 'level', 'begin_sub', 'begin_qid', 'next_qid', 'next_set_at', 'status', 'created_at', 'closed_at', 'note']],
   [TAB.DICTIONARY, ['tab', 'column', 'meaning', 'example']]
 ];
 

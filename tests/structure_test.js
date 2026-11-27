@@ -6,7 +6,7 @@ const noComments = t => t.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\
 const problems = [];
 let n = 0;
 function ok(cond, msg) { n++; if (!cond) problems.push(msg); }
-const TAB_NAMES = /'(README|Dictionary|Settings|Students|Classes|Skills|Paths|Questions|Batches|Item_Overrides|Time_Norms|Attempts|Tries|Hints|Review|Skill_Status|Level_Overrides|Class_Sessions|Class_Queue|Class_Events)'/;
+const TAB_NAMES = /'(README|Dictionary|Settings|Students|Classes|Skills|Paths|Questions|Batches|Item_Overrides|Time_Norms|Attempts|Tries|Hints|Review|Skill_Status|Level_Overrides|Teacher_Sessions)'/;
 files.filter(f => f.endsWith('.gs')).forEach(f => {
   const s = fs.readFileSync(path.join(SRC, f), 'utf8');
   if (f !== 'Data.gs') {

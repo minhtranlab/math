@@ -1,0 +1,209 @@
+<script>
+/* ===================== MSB — teacher: "Practise with teacher" (#9 v2) =====================
+   Tab: students with their open assignment · Assign (sub-skills, start level E/M/H, where to begin, optional first question).
+   Live (screen scr-tq): the question the student is on, what they have chosen / typed, the tries — read ONLY when Live opens
+   or the teacher presses Refresh (no auto-refresh, ticket #9 v2). Show answer = the key, instant (already on this page).
+   Assign next = the student's NEXT question only; after it the app picks again. Pen / Calculator / Notes / More space /
+   Snapshot come from Pen.html + Tools.html. */
+var W = { d: null, form: null, live: null, aid: '', cands: null };
+var LVW = { E: 'Easy', M: 'Medium', H: 'Hard' };
+
+function renderWith(d) {
+  W.d = d;
+  var h = tbar('Practise with teacher', 'Updated ' + esc(d.read_at));
+  h += tTable([
+    ['Student', function (s) { return esc(s.name); }],
+    ['Assigned', function (s) {
+      if (!s.open) return '<span class="muted">—</span>';
+      var o = s.open;
+      return esc(o.subs.map(function (u) { return u.name; }).join(', ')) + '<br><span class="muted">Start ' + esc(LVW[o.level] || o.level) + ' · ' + o.done + ' done · since ' + esc(o.since) +
+             (o.next_qid ? ' · next: ' + esc(o.next_qid) : '') + '</span>';
+    }],
+    ['', function (s) {
+      return '<span class="wbtns">' + (s.open ? '<button type="button" class="btn small" data-wlive="' + esc(s.code) + '">Live</button>' : '') +
+             '<button type="button" class="btn ghost small" data-wform="' + esc(s.code) + '">' + (s.open ? 'Change' : 'Assign') + '</button>' +
+             (s.open ? '<button type="button" class="link" data-wclose="' + esc(s.open.session_id) + '">Close</button>' : '') + '</span>';
+    }]
+  ], d.students, 'No active students.');
+  h += '<div id="w-form"></div>';
+  $('#t-main').innerHTML = h;
+  if (W.form && W.form.code) openForm(W.form.code, true);
+}
+
+/* ---------------- Assign form ---------------- */
+function openForm(code, keep) {
+  var s = W.d.students.filter(function (x) { return x.code === code; })[0]; if (!s) return;
+  if (!keep || !W.form || W.form.code !== code) W.form = { code: code, level: s.open ? s.open.level : 'E', qid: '' };
+  var on = {}; if (s.open) s.open.subs.forEach(function (u) { on[u.id] = 1; });
+  var h = '<div class="panel" id="w-panel"><h3>Practise with teacher · ' + esc(s.name) + '</h3>' +
+          (s.open ? '<p class="muted">Starting again replaces the current assignment.</p>' : '') +
+          '<p class="eyebrow">1 · Sub-skills</p><div class="tree">' + W.d.tree.map(function (t) {
+    return '<h2 class="h2" style="margin-top:12px">' + esc(t.name) + '</h2>' + t.skills.map(function (k) {
+      return '<div class="tk"><input type="checkbox" data-wskill="' + esc(k.id) + '"> ' + esc(k.name) + '</div>' +
+        k.subs.map(function (u) { return '<label><input type="checkbox" data-wsub="' + esc(u.id) + '" data-wof="' + esc(k.id) + '" data-name="' + esc(u.name) + '"' + (on[u.id] ? ' checked' : '') + (u.n_live ? '' : ' disabled') + '> ' + esc(u.name) + ' <span class="muted">' + esc(u.id) + ' · ' + u.n_live + ' live</span></label>'; }).join('');
+    }).join('');
+  }).join('') + '</div>' +
+  '<p class="eyebrow">2 · Start level</p><div class="seg" id="w-lv">' + ['E', 'M', 'H'].map(function (L) { return '<button type="button" class="mini' + (W.form.level === L ? ' on' : '') + '" data-wlv="' + L + '">' + LVW[L] + '</button>'; }).join('') + '</div>' +
+  '<p class="muted small">If the student is already higher in a sub-skill, the app uses their level.</p>' +
+  '<p class="eyebrow">3 · Begin at</p><select id="w-begin" class="field sel"></select>' +
+  '<p class="eyebrow">4 · First question <span class="muted">(optional)</span></p><div class="tbar"><button type="button" class="btn ghost small" id="w-cand">Choose a first question</button><span class="stamp" id="w-qid">The app picks</span></div><div id="w-cands"></div>' +
+  '<div class="actions"><button class="btn big" type="button" id="w-start">Start</button><span class="stamp" id="w-msg"></span></div></div>';
+  $('#w-form').innerHTML = h;
+  $$('input[data-wskill]').forEach(wSyncSkill); wBeginOpts(s.open ? s.open.begin_sub : '');
+  if (!keep) $('#w-panel').scrollIntoView({ block: 'start' });
+}
+function wTicked() { return $$('input[data-wsub]').filter(function (x) { return x.checked; }); }
+function wSyncSkill(box) {
+  var k = box.getAttribute('data-wskill'), subs = $$('input[data-wof="' + k + '"]').filter(function (x) { return !x.disabled; }), n = subs.filter(function (x) { return x.checked; }).length;
+  box.checked = subs.length > 0 && n === subs.length; box.indeterminate = n > 0 && n < subs.length; box.disabled = !subs.length;
+}
+function wBeginOpts(want) {
+  var sel = $('#w-begin'), cur = want || sel.value, t = wTicked();
+  sel.innerHTML = t.length ? t.map(function (x) { var id = x.getAttribute('data-wsub'); return '<option value="' + esc(id) + '"' + (id === cur ? ' selected' : '') + '>' + esc(x.getAttribute('data-name')) + '</option>'; }).join('') : '<option value="">Tick sub-skills first</option>';
+}
+function wClearQ() { if (W.form) W.form.qid = ''; var q = $('#w-qid'); if (q) q.textContent = 'The app picks'; var c = $('#w-cands'); if (c) c.innerHTML = ''; }
+function candHtml(items, act) {
+  if (!items.length) return '<p class="empty">No live questions at this level.</p>';
+  return '<div class="cands">' + items.map(function (it) {
+    return '<div class="cand"><span class="cq"><b>' + esc(it.qid) + '</b> <span class="muted">' + esc(it.difficulty) + (it.seen ? ' · done ' + it.seen + '×' : ' · new') + '</span><br><span class="pv">' + esc(it.preview) + '</span></span>' +
+           '<button type="button" class="btn small" ' + act + '="' + esc(it.qid) + '">Choose</button></div>';
+  }).join('') + '</div>';
+}
+
+/* ---------------- Live ---------------- */
+function openLive(code) {
+  W.live = { code: code }; W.aid = ''; W.cands = null;
+  show('scr-tq'); location.hash = 'live';
+  $('#tq-who').textContent = ''; $('#tq-info').textContent = 'Loading…'; $('#tq-sub').textContent = ''; $('#tq-qid').textContent = '';
+  $('#tq-card').innerHTML = '<div class="spinner"></div>'; $('#tq-nextpanel').classList.add('hidden');
+  toolsHost('tq-work', '');
+  liveLoad();
+}
+function liveLoad() {
+  var b = $('#tq-refresh'); b.disabled = true; b.textContent = 'Refreshing…';
+  var me = W.live;
+  return API.tsLive(S.teacher, me.code).then(function (d) { if (W.live === me) renderLive(d); })
+    .catch(function (e) { $('#tq-info').innerHTML = '<span class="err">' + esc(API.msg(e)) + '</span>'; })
+    .then(function () { b.disabled = false; b.textContent = 'Refresh'; });
+}
+function secText(s) { return s >= 60 ? Math.floor(s / 60) + ' min ' + (s % 60) + ' s' : s + ' s'; }
+function renderLive(d) {
+  W.live.d = d;
+  $('#tq-who').textContent = d.student.name;
+  var se = d.session, c = d.current;
+  $('#tq-info').innerHTML = (se ? '<b>Practise with teacher</b> · ' + esc(se.subs.map(function (u) { return u.name; }).join(', ')) + ' · start ' + esc(LVW[se.level] || se.level) +
+      (se.next_qid ? ' · <span class="nextq">Next: ' + esc(se.next_qid) + ' (' + esc(se.next_name) + ')</span>' : '')
+    : '<b>No open "Practise with teacher"</b> · showing the last question') + ' <span class="stamp">Updated ' + esc(d.read_at) + '</span>';
+  $('#tq-next').disabled = !se;
+  if (!c) { W.aid = ''; $('#tq-sub').textContent = ''; $('#tq-qid').textContent = ''; $('#tq-card').innerHTML = '<p class="empty">No question yet — the student has not started.</p>'; return; }
+  $('#tq-sub').textContent = c.subskill + ' · ' + (LVW[c.difficulty] || c.difficulty);
+  $('#tq-qid').textContent = c.q.qid;
+  if (W.aid !== c.attempt_id) {                                         // a new question: draw it, fresh ink / space / notes
+    W.aid = c.attempt_id;
+    var q = c.q, h = '<div class="stem">' + q.stem_html + '</div>';
+    q.figures.forEach(function (f) { h += '<div class="fig"><img src="' + esc(f.src) + '" alt="' + esc(f.alt) + '"' + (f.width ? ' style="width:' + esc(f.width) + '"' : '') + '></div>'; });
+    if (q.type === 'mcq') h += '<div class="choices">' + q.choices.map(function (x) { return '<div class="ch" data-tl="' + esc(x.label) + '"><span class="lt">' + esc(x.label) + '</span><span>' + x.html + '</span></div>'; }).join('') + '</div>';
+    else h += '<div class="numrow"><span class="num tnum" id="tq-typed"></span>' + (q.unit ? '<span class="unit">' + esc(q.unit) + '</span>' : '') + '</div>';
+    h += '<div class="tkey hidden" id="tq-key"><span class="lab">Answer</span> ' + (c.answer.label ? '<b>' + esc(c.answer.label) + '</b> ' : '') + c.answer.html +
+         (c.hint_html ? '<div class="hint"><span class="lab">Hint</span>' + c.hint_html + '</div>' : '') + '</div>';
+    h += '<div class="tstate" id="tq-state"></div>';
+    $('#tq-card').innerHTML = h;
+    toolsHost('tq-work', 'T:' + c.attempt_id);
+    $('#tq-ans').classList.remove('on'); $('#tq-ans').textContent = 'Show answer';
+    typeset($('#tq-card'));
+  }
+  // what changes on Refresh: the marks + the state line (ink and space stay)
+  if (c.q.type === 'mcq') {
+    $$('#tq-card .ch').forEach(function (b) {
+      var L = b.getAttribute('data-tl'), tr = c.tries.filter(function (t) { return String(t.a).toUpperCase() === L; })[0];
+      b.classList.toggle('tried', !!tr && !tr.ok); b.classList.toggle('right', !!tr && tr.ok);
+      b.classList.toggle('sel', !!c.typed && c.typed === L && !tr);
+    });
+  } else { var tn = $('#tq-typed'); if (tn) tn.textContent = c.status === 'open' ? (c.typed || '') : (c.tries.length ? c.tries[c.tries.length - 1].a : ''); }
+  var st = [];
+  st.push('<b>' + (c.status === 'open' ? 'Working' : c.result === 'right_1' ? '✓ Right 1st try' : c.result === 'right_2' ? '✓ Right after ' + c.tries.length + ' tries' : c.status === 'done' ? '✗ Not right — answer shown to the student' : esc(c.status)) + '</b>');
+  st.push('Tries ' + c.tries.length + ' of ' + c.max_tries + (c.tries.length ? ': ' + c.tries.map(function (t) { return '<span class="' + (t.ok ? 'ok-t' : 'no-t') + '">' + (t.ok ? '✓ ' : '✗ ') + esc(t.a) + '</span>'; }).join(' · ') : ''));
+  if (c.status === 'open') st.push(c.typed ? 'Now ' + (c.q.type === 'mcq' ? 'chosen' : 'typed') + ': <b>' + esc(c.typed) + '</b>' + (c.typed_ago !== null ? ' <span class="muted">(' + secText(c.typed_ago) + ' ago)</span>' : '') : '<span class="muted">Nothing chosen yet</span>');
+  st.push(secText(c.sec) + (c.status === 'open' ? ' on this question' : ''));
+  if (c.hint) st.push('Hint used');
+  st.push('<span class="muted">' + esc(c.progress) + '</span>');
+  if (!c.in_session) st.push('<span class="muted">(not from Practise with teacher)</span>');
+  $('#tq-state').innerHTML = st.join(' · ');
+}
+function nextPanel() {
+  var p = $('#tq-nextpanel'), d = W.live && W.live.d;
+  if (!p.classList.contains('hidden')) { p.classList.add('hidden'); $('#tq-next').classList.remove('on'); return; }
+  if (!d || !d.session) return;
+  var subs = d.session.subs.slice(), cur = d.current, curSub = '';
+  if (cur) { var m = subs.filter(function (u) { return u.name === cur.subskill; })[0]; curSub = m ? m.id : ''; }
+  W.cands = { sub: curSub || subs[0].id, level: cur ? cur.difficulty : (d.session.level || 'E') };
+  p.innerHTML = '<div class="tbar"><b>Next question for ' + esc(d.student.name) + '</b><select id="nx-sub" class="field sel">' + subs.map(function (u) { return '<option value="' + esc(u.id) + '"' + (u.id === W.cands.sub ? ' selected' : '') + '>' + esc(u.name) + '</option>'; }).join('') + '</select>' +
+    '<span class="seg">' + ['E', 'M', 'H'].map(function (L) { return '<button type="button" class="mini' + (W.cands.level === L ? ' on' : '') + '" data-nxlv="' + L + '">' + LVW[L] + '</button>'; }).join('') + '</span>' +
+    '<span class="stamp" id="nx-msg"></span></div><div id="nx-list"><div class="spinner"></div></div><p class="muted small">Only the NEXT question — after it the app picks again.</p>';
+  p.classList.remove('hidden'); $('#tq-next').classList.add('on');
+  nextList();
+}
+function nextList() {
+  $('#nx-list').innerHTML = '<div class="spinner"></div>';
+  API.tsCandidates(S.teacher, W.live.code, W.cands.sub, W.cands.level).then(function (r) { $('#nx-list').innerHTML = candHtml(r.items, 'data-nxpick'); })
+    .catch(function (e) { $('#nx-list').innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p>'; });
+}
+
+/* ---------------- events ---------------- */
+$('#t-main').addEventListener('click', function (ev) {
+  var t;
+  if ((t = ev.target.closest('[data-wlive]'))) { openLive(t.getAttribute('data-wlive')); return; }
+  if ((t = ev.target.closest('[data-wform]'))) { openForm(t.getAttribute('data-wform'), false); return; }
+  if ((t = ev.target.closest('[data-wclose]'))) {
+    t.disabled = true;
+    API.tsClose(S.teacher, t.getAttribute('data-wclose')).then(function (d) { W.form = null; renderWith(d); }).catch(function (e) { t.disabled = false; $('#w-form').innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p>'; });
+    return;
+  }
+  if ((t = ev.target.closest('[data-wlv]'))) { W.form.level = t.getAttribute('data-wlv'); $$('[data-wlv]').forEach(function (b) { b.classList.toggle('on', b === t); }); wClearQ(); return; }
+  if (ev.target.closest('#w-cand')) {
+    var sub = $('#w-begin').value; if (!sub) { $('#w-msg').textContent = 'Tick sub-skills first.'; return; }
+    $('#w-cands').innerHTML = '<div class="spinner"></div>';
+    API.tsCandidates(S.teacher, W.form.code, sub, W.form.level).then(function (r) { $('#w-cands').innerHTML = candHtml(r.items, 'data-wpick'); })
+      .catch(function (e) { $('#w-cands').innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p>'; });
+    return;
+  }
+  if ((t = ev.target.closest('[data-wpick]'))) { W.form.qid = t.getAttribute('data-wpick'); $('#w-qid').innerHTML = 'First: <b>' + esc(W.form.qid) + '</b> <button type="button" class="link" id="w-noq">Let the app pick</button>'; $('#w-cands').innerHTML = ''; return; }
+  if (ev.target.closest('#w-noq')) { wClearQ(); return; }
+  if ((t = ev.target.closest('#w-start'))) {
+    var ids = wTicked().map(function (x) { return x.getAttribute('data-wsub'); });
+    if (!ids.length) { $('#w-msg').textContent = 'Tick at least one sub-skill.'; return; }
+    t.disabled = true; $('#w-msg').textContent = 'Saving…';
+    var code = W.form.code;
+    API.tsStart(S.teacher, code, ids, W.form.level, $('#w-begin').value, W.form.qid).then(function (d) {
+      W.form = null; renderWith(d);
+      $('#w-form').innerHTML = '<p class="okline">Assigned. The card is now at the top of the student\'s home. <button type="button" class="btn small" data-wlive="' + esc(code) + '">Live</button></p>';
+    }).catch(function (e) { t.disabled = false; $('#w-msg').textContent = API.msg(e); });
+  }
+});
+$('#t-main').addEventListener('change', function (ev) {
+  var t = ev.target;
+  if (t.matches('input[data-wskill]')) { $$('input[data-wof="' + t.getAttribute('data-wskill') + '"]').forEach(function (x) { if (!x.disabled) x.checked = t.checked; }); wSyncSkill(t); wBeginOpts(); wClearQ(); }
+  else if (t.matches('input[data-wsub]')) { var k = $('input[data-wskill="' + t.getAttribute('data-wof') + '"]'); if (k) wSyncSkill(k); wBeginOpts(); wClearQ(); }
+  else if (t.matches('#w-begin')) wClearQ();
+});
+$('#tq-refresh').addEventListener('click', function () { if (W.live) liveLoad(); });
+$('#tq-close').addEventListener('click', function () { W.live = null; T.tab = 'with'; openTeacher(true); });
+$('#tq-ans').addEventListener('click', function () {
+  var k = $('#tq-key'); if (!k) return;
+  var on = k.classList.toggle('hidden') === false; this.classList.toggle('on', on); this.textContent = on ? 'Hide answer' : 'Show answer';
+  if (on) { typeset(k); penSize(); }
+});
+$('#tq-next').addEventListener('click', nextPanel);
+$('#tq-snap').addEventListener('click', function () { snapshot($('#tq-work'), this).catch(function () {}); });
+$('#tq-nextpanel').addEventListener('change', function (ev) { if (ev.target.matches('#nx-sub')) { W.cands.sub = ev.target.value; nextList(); } });
+$('#tq-nextpanel').addEventListener('click', function (ev) {
+  var t;
+  if ((t = ev.target.closest('[data-nxlv]'))) { W.cands.level = t.getAttribute('data-nxlv'); $$('[data-nxlv]').forEach(function (b) { b.classList.toggle('on', b === t); }); nextList(); return; }
+  if ((t = ev.target.closest('[data-nxpick]'))) {
+    t.disabled = true; $('#nx-msg').textContent = 'Saving…';
+    API.tsAssignNext(S.teacher, W.live.code, t.getAttribute('data-nxpick')).then(function (d) {
+      $('#tq-nextpanel').classList.add('hidden'); $('#tq-next').classList.remove('on'); renderLive(d);
+    }).catch(function (e) { t.disabled = false; $('#nx-msg').textContent = API.msg(e); });
+  }
+});
+</script>
