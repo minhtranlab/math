@@ -46,17 +46,20 @@ const numOf = html => (String(html).replace(/<[^>]+>/g, ' ').match(/-?\d+(\.\d+)
   check(new RegExp('1/' + qs.length).test(await s.textContent('.stats')), 'Submit → First Try 1/' + qs.length + ' (' + (Date.now() - t0) + ' ms)');
   await sp.screenshot({ path: OUT + 'L8_06_result.png', fullPage: true });
   await s.click('[data-hwfix]'); await s.waitForSelector('#fix-card .stem', W);
-  const fixNum = await s.evaluate(() => { const i = H.fix.items.findIndex(o => !o.mcq && o.status === 'open'); if (i >= 0) hwFixGo(i); return i >= 0 ? H.fix.items[i].qid : ''; });
-  if (fixNum) {
-    await s.waitForFunction(q => H.keys[q], fixNum, W);
-    await s.fill('#fix-card .hwnum', '2.22'); t0 = Date.now(); await s.click('#fix-check'); await s.waitForSelector('#fix-fb .fb.no', W);
+  const fx = await s.evaluate(() => { const i = H.fix.items.findIndex(o => o.status === 'open' && (!o.mcq || o.choices.length - o.tried.length > 1)); if (i >= 0) hwFixGo(i); return i >= 0 ? { qid: H.fix.items[i].qid, mcq: H.fix.items[i].mcq, left: H.fix.items[i].choices.map(c => c.label).filter(l => H.fix.items[i].tried.indexOf(l) < 0) } : null; });
+  if (fx) {
+    await s.waitForFunction(q => H.keys[q], fx.qid, W);
+    const wrongV = fx.mcq ? fx.left.find(l => l !== keys[fx.qid]) : '2.22';
+    if (fx.mcq) await s.click(`#fix-card .ch[data-l="${wrongV}"]`); else await s.fill('#fix-card .hwnum', wrongV);
+    t0 = Date.now(); await s.click('#fix-check'); await s.waitForSelector('#fix-fb .fb.no', W);
     check(Date.now() - t0 < 600, 'Fix: ✗ at once (' + (Date.now() - t0) + ' ms)');
     await s.waitForFunction(() => /Saved/.test((document.querySelector('#fix-sync') || {}).textContent || ''), null, W);
-    await s.fill('#fix-card .hwnum', String(keys[fixNum])); await s.click('#fix-check'); await s.waitForSelector('#fix-fb .fb.ok', W);
+    if (fx.mcq) await s.click(`#fix-card .ch[data-l="${keys[fx.qid]}"]`); else await s.fill('#fix-card .hwnum', String(keys[fx.qid]));
+    t0 = Date.now(); await s.click('#fix-check'); await s.waitForSelector('#fix-fb .fb.ok', W);
     await s.waitForFunction(() => /Best Score 2\//.test((document.querySelector('#fix-sync') || {}).textContent || ''), null, W);
-    check(true, 'Fix right → Best Score 2/' + qs.length);
+    check(true, 'Fix right → Best Score 2/' + qs.length + ' (saved in ' + (Date.now() - t0) + ' ms)');
     await sp.screenshot({ path: OUT + 'L8_07_fix.png', fullPage: true });
-  } else check(false, 'a typed item to fix');
+  } else check(false, 'an item to fix with a wrong option left');
   await s.click('#fix-back'); await s.waitForSelector('#scr-hw.on .stats', W); await s.click('#scr-hw.on [data-hw="history"]'); await s.waitForSelector('#hw-main table', W);
   check(new RegExp(title.slice(0, 13)).test(await s.textContent('#hw-main')), 'My history lists it'); await sp.screenshot({ path: OUT + 'L8_08_history.png' });
   await t.click('#t-refresh'); await t.waitForFunction(() => /Best 2\//.test((document.querySelector('.hwrow') || {}).textContent || ''), null, W);

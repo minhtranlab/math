@@ -184,7 +184,7 @@ function hwSubmit(code, setId, payload) {
     var used = resp.reduce(function (t, r) { return t + (Number(r.time_total_sec) || 0); }, 0);
     dataUpdate_(TAB.SETS, s._row, { status: 'submitted', submitted_at: now, state_json: txt_(JSON.stringify(st)), progress: 'Submitted', last_saved_at: now,
                                     first_try: right, best_score: right, n_blank: blank, time_used_min: round_(used / 60, 1) });
-    progressReset_(); Object.keys(subs).forEach(function (u) { refreshStatus_(c, u); });
+    refreshStatuses_(c, Object.keys(subs));
     var done = {}; Object.keys(s).forEach(function (k) { done[k] = s[k]; }); done.status = 'submitted'; done.submitted_at = now; done.first_try = right;
     return hwResultView_(done, resp);
   } finally { lock.releaseLock(); }

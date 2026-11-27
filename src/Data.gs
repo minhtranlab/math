@@ -142,10 +142,11 @@ function headers_(name) {
   if (lastCol < 1) return [];
   return (_heads[name] = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h).trim(); }));
 }
+var _grid = {};                                                                // grid size per sheet, once per call (#8 speed)
 function ensureGrid_(sh, lastRowNeeded, lastColNeeded) {
-  var maxR = sh.getMaxRows();
-  if (lastRowNeeded > maxR) sh.insertRowsAfter(maxR, lastRowNeeded - maxR + 500);
-  if (lastColNeeded) { var maxC = sh.getMaxColumns(); if (lastColNeeded > maxC) sh.insertColumnsAfter(maxC, lastColNeeded - maxC); }
+  var k = sh.getName(), g = _grid[k] || (_grid[k] = { r: sh.getMaxRows(), c: 0 });
+  if (lastRowNeeded > g.r) { sh.insertRowsAfter(g.r, lastRowNeeded - g.r + 500); g.r = lastRowNeeded + 500; }
+  if (lastColNeeded) { if (!g.c) g.c = sh.getMaxColumns(); if (lastColNeeded > g.c) { sh.insertColumnsAfter(g.c, lastColNeeded - g.c); g.c = lastColNeeded; } }
 }
 function rowsFor_(headers, objs) {
   return objs.map(function (o) { return headers.map(function (h) { return (h in o && o[h] !== undefined && o[h] !== null) ? o[h] : ''; }); });

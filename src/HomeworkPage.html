@@ -191,19 +191,20 @@ function hwFixCheck() {
   if (!a) { fb.innerHTML = '<div class="fb no">' + (o.mcq ? 'Choose an answer.' : 'Type your answer.') + '</div>'; return; }
   var k = H.keys[o.qid], spec = k ? API.decodeKey(k.k, H.fix.set_id + '|' + o.qid) : null, ok = spec ? msbGrade_(spec, a) : null, sec = Math.round((Date.now() - H.fixAt) / 1000);
   $('#fix-check').disabled = true; $('#fix-sync').textContent = 'Saving…';
-  if (ok !== null) hwFixShow(o, a, ok);
+  if (ok !== null) hwFixShow(o, ok, o.mcq ? Math.max(0, (o.tries_left || 1) - 1) : null);
   API.hwFixTry(S.code, H.fix.set_id, o.qid, a, sec, ok).then(function (r) {
     if (!r.ok) { $('#fix-sync').textContent = ''; fb.innerHTML = '<div class="fb no">' + esc(r.msg) + '</div>'; if ($('#fix-check')) $('#fix-check').disabled = false; return; }
     o.status = r.status; o.tries_left = r.tries_left; o.tried = r.tried || o.tried; o.n_tries = r.n_tries; if (r.correct) o.answer = a; else if (!o.mcq) (o.tried_num = o.tried_num || []).push(a);
     H.fix.best = r.best; $('#fix-sync').textContent = 'Saved ✓ · Best Score ' + r.best + '/' + H.fix.n;
-    if (ok === null || r.mismatch) hwFixShow(o, a, r.correct);
-    hwFixGo(H.fcur); $('#fix-sync') && ($('#fix-sync').textContent = 'Saved ✓ · Best Score ' + r.best + '/' + H.fix.n);
+    hwFixGo(H.fcur);                                                     // the server's answer is the truth: redraw, keep the ✓ / ✗ line
+    hwFixShow(o, r.correct, r.tries_left);
+    $('#fix-sync').textContent = 'Saved ✓ · Best Score ' + r.best + '/' + H.fix.n;
   }).catch(function (e) { $('#fix-sync').textContent = ''; fb.innerHTML = '<div class="fb no">Not saved — ' + esc(API.msg(e)) + ' Press Check again.</div>'; if ($('#fix-check')) $('#fix-check').disabled = false; });
 }
-function hwFixShow(o, a, ok) {
+function hwFixShow(o, ok, left) {
   var fb = $('#fix-fb');
-  if (ok) { fb.innerHTML = '<div class="fb ok"><span class="big">✓ Correct</span></div>'; var b = $('#fix-card .ch.sel'); if (b) b.classList.add('right'); }
-  else fb.innerHTML = '<div class="fb no"><span class="big">✗</span> Not quite' + (o.mcq ? ' — ' + Math.max(0, (o.tries_left || 1) - 1) + ' tr' + ((o.tries_left || 1) - 1 === 1 ? 'y' : 'ies') + ' left' : ' — try again') + '</div>';
+  if (ok) { fb.innerHTML = '<div class="fb ok"><span class="big">✓ Correct</span></div>'; var b = $('#fix-card .ch.sel'); if (b) b.classList.add('right'); return; }
+  fb.innerHTML = '<div class="fb no"><span class="big">✗</span> Not quite' + (o.mcq ? (left > 0 ? ' — ' + left + ' tr' + (left === 1 ? 'y' : 'ies') + ' left' : ' — no tries left') : ' — try again') + '</div>';
 }
 $('#scr-fix').addEventListener('click', function (ev) {
   var n = ev.target.closest('[data-fixnav]'); if (n && !n.disabled) { hwFixGo(Number(n.getAttribute('data-fixnav'))); return; }

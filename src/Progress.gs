@@ -76,6 +76,19 @@ function writeStatus_(code, sub, p) {
             position: p.position, history: txt_(p.hist.join(' · ')), override: p.override };
   if (row) dataUpdate_(TAB.SKILL_STATUS, row._row, f); else dataAppend_(TAB.SKILL_STATUS, [f]);
 }
+/** Several sub-skills of one student at once (assignment Submit): Skill_Status read once, one write per row. */
+function refreshStatuses_(code, subs) {
+  progressReset_();
+  var c = normCode_(code), have = {}, add = [];
+  dataRows_(TAB.SKILL_STATUS).forEach(function (r) { if (normCode_(r.student_code) === c) have[clean_(r.subskill)] = r._row; });
+  subs.forEach(function (u) {
+    var p = progressOf_(c, u), f = { student_code: c, subskill: txt_(u), level: p.solid ? 'H' : p.level, steps: p.steps, status: p.status, n_attempts: p.n, n_right1: p.right1,
+              n_wrong2: p.wrong2, n_hints: p.hints, last_at: p.last ? fmtDate_(new Date(p.last), 'yyyy-MM-dd HH:mm:ss') : '', updated_at: nowIso_(),
+              position: p.position, history: txt_(p.hist.join(' · ')), override: p.override };
+    if (have[u]) dataUpdate_(TAB.SKILL_STATUS, have[u], f); else add.push(f);
+  });
+  dataAppend_(TAB.SKILL_STATUS, add);
+}
 function refreshStatus_(code, sub) { progressReset_(); var p = progressOf_(code, sub); writeStatus_(code, sub, p); return p; }
 
 /** Short student-facing words for a progress state. */
