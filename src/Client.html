@@ -240,6 +240,7 @@ function feedback(ok, finished, ans, r) {
     var inp = $('#q-num'); if (inp) { inp.value = ''; inp.focus(); }
     return;
   }
+  $$('.ch').forEach(function (b) { b.classList.remove('sel'); });      // the last wrong choice is only crossed out, not highlighted
   fb.innerHTML = '<div class="fb no"><span class="big">✗</span> Not this time.</div><div class="fb ans">Answer: ' + answerHtml(r) + '<br><span class="muted">Added to your review list.</span></div>';
   if (S.cur.q.type === 'mcq' && S.spec) { var rb = $('.ch[data-l="' + S.spec.k[0] + '"]'); if (rb) rb.classList.add('right'); }
   typeset(fb);

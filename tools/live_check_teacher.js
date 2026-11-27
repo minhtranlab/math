@@ -74,6 +74,10 @@ async function answerSomething(f) { if (await f.$('#q-num')) { await f.fill('#q-
   const q2 = await s.evaluate(() => S.cur.q.qid);
   check(q2 === want, 'student next question = the assigned one (' + q2 + ')');
   await s.click('#scr-q [data-tool="space"]'); await s.click('#scr-q [data-tool="pen"]');
+  await s.click('[data-pt="off"]'); await s.click('#scr-q [data-tool="snap"]'); await s.waitForSelector('#snap:not(.hidden)', W);
+  const dl2 = await Promise.all([sp.waitForEvent('download', { timeout: 15000 }), s.click('#snap-dl')]).then(r => r[0]).catch(() => null);
+  check(!!dl2, 'student Snapshot + Download (#13)'); await sp.screenshot({ path: OUT + 'L13_student_snapshot.png' }); await s.click('#snap-close');
+  await s.click('#scr-q [data-tool="pen"]');
   await sp.screenshot({ path: OUT + 'L9v2_07_student_question.png' }); await s.click('[data-pt="off"]');
   await t.click('#tq-refresh'); await t.waitForFunction(q => document.querySelector('#tq-qid').textContent === q, q2, W);
   check(true, 'teacher Refresh → ' + q2);
