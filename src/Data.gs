@@ -135,10 +135,12 @@ function readTableSheet_(name) {
   }
   return tableObj_(name, headers, rows);
 }
+var _heads = {};                                                               // header row per tab, once per call (#8 speed)
 function headers_(name) {
+  if (_heads[name]) return _heads[name];
   var sh = sheet_(name), lastCol = sh.getLastColumn();
   if (lastCol < 1) return [];
-  return sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h).trim(); });
+  return (_heads[name] = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h).trim(); }));
 }
 function ensureGrid_(sh, lastRowNeeded, lastColNeeded) {
   var maxR = sh.getMaxRows();
@@ -216,7 +218,7 @@ function dataEnsureTab_(tab, cols) {
   var miss = cols.filter(function (h) { return have.indexOf(h) < 0; });
   if (miss.length) {
     ensureGrid_(sh, 2, have.length + miss.length);
-    sh.getRange(1, have.length + 1, 1, miss.length).setValues([miss]).setFontWeight('bold');
+    sh.getRange(1, have.length + 1, 1, miss.length).setValues([miss]).setFontWeight('bold'); delete _heads[tab];
     try { sh.setFrozenRows(1); } catch (e) {}
     tabChanged_(tab);
   }

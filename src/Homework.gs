@@ -106,13 +106,13 @@ function hwStart(code, aid, device) {
                                 created_at: nowIso_(), status: 'in_progress', state_json: '', progress: '0/' + q.length + ' answered', last_saved_at: nowIso_() }]);
     }
   } finally { lock.releaseLock(); }
-  return hwGet(code, setId, device);
+  return hwGet(code, setId, device, true);
 }
 /** Browser call: open (or reopen) a set. This window becomes the live copy (an older window stops saving). */
-function hwGet(code, setId, device) {
+function hwGet(code, setId, device, keep) {
   var copy = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), s, lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
-    freshReads_();
+    if (!keep) freshReads_();
     s = requireSet_(code, setId);
     if (isSubmitted_(s)) return { ok: true, submitted: true, set_id: String(setId), result: hwResultView_(s) };
     var f = { copy_token: copy }; if (device) f.device = txt_(String(device).slice(0, 40));
@@ -185,12 +185,13 @@ function hwSubmit(code, setId, payload) {
     dataUpdate_(TAB.SETS, s._row, { status: 'submitted', submitted_at: now, state_json: txt_(JSON.stringify(st)), progress: 'Submitted', last_saved_at: now,
                                     first_try: right, best_score: right, n_blank: blank, time_used_min: round_(used / 60, 1) });
     progressReset_(); Object.keys(subs).forEach(function (u) { refreshStatus_(c, u); });
-    return hwResultView_(setRow_(setId));
+    var done = {}; Object.keys(s).forEach(function (k) { done[k] = s[k]; }); done.status = 'submitted'; done.submitted_at = now; done.first_try = right;
+    return hwResultView_(done, resp);
   } finally { lock.releaseLock(); }
 }
 /** The ONE result view (lesson 10): header + First Try / Best Score + by sub-skill + mistake types + the question list. */
-function hwResultView_(s) {
-  var rows = responsesOf_(s.set_id), by = {}, mist = {}, open = 0;
+function hwResultView_(s, rowsIn) {
+  var rows = rowsIn || responsesOf_(s.set_id), by = {}, mist = {}, open = 0;
   rows.forEach(function (r) {
     var u = clean_(r.subskill), o = by[u] = by[u] || { subskill: u, name: subskillName_(u), n: 0, right1: 0, best: 0 };
     o.n++; if (Number(r.try1_correct) === 1) o.right1++; if (Number(r.best_correct) === 1) o.best++;
