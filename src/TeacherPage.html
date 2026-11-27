@@ -2,9 +2,9 @@
 /* ===================== MSB — teacher page: Overview · Practise with teacher (WithTeacher.html) · Assign path · Status grid =====================
    One overview: students · wrong twice (to explain) · hint use · recent answers. "Refresh" reads the Sheet itself
    (SAT lesson #4: snapshots make teacher views stale). Assign path + status grid come in the next ticket. */
-var RES_TEXT = { right_1: 'Right 1st try', right_2: 'Right 2nd try', wrong_2: 'Wrong twice' };
+var RES_TEXT = { right_1: 'Right 1st try', right_2: 'Right 2nd try', wrong_2: 'Wrong twice', wrong_1: 'Wrong (assignment)', blank: 'Blank (assignment)' };
 var T = { tab: 'overview', student: '', path: null, cell: null };
-var TABS = [['overview', 'Overview'], ['with', 'Practise with teacher'], ['path', 'Assign path'], ['grid', 'Status grid']];
+var TABS = [['overview', 'Overview'], ['with', 'Practise with teacher'], ['hw', 'Assignments'], ['go', 'Go over'], ['asked', 'Asked'], ['path', 'Assign path'], ['grid', 'Status grid']];
 function tabsBar() { return '<div class="tabs">' + TABS.map(function (t) { return '<button type="button" class="tab' + (T.tab === t[0] ? ' on' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>'; }
 function tbar(title, stamp) { return tabsBar() + '<div class="tbar"><h2 class="h2" style="margin:0">' + title + '</h2><button class="btn ghost small" id="t-refresh" type="button">Refresh</button><span class="stamp">' + stamp + '</span></div>'; }
 function openTeacher(fresh) {
@@ -15,6 +15,9 @@ function openTeacher(fresh) {
   else { var b = $('#t-refresh'); if (b) { b.disabled = true; b.textContent = 'Refreshing…'; } }
   var fail = function (e) { m.innerHTML = tabsBar() + '<p class="err">' + esc(API.msg(e)) + '</p><button class="btn" id="t-refresh" type="button">Refresh</button>'; };
   if (T.tab === 'with') { API.tsHome(S.teacher, fresh).then(renderWith).catch(fail); return; }
+  if (T.tab === 'hw') { API.hwList(S.teacher, fresh).then(renderHw).catch(fail); return; }
+  if (T.tab === 'go') { API.goOver(S.teacher, TB.target, TB.scope, fresh).then(renderGo).catch(fail); return; }
+  if (T.tab === 'asked') { API.asksInbox(S.teacher, fresh).then(renderAsked).catch(fail); return; }
   if (T.tab === 'path') API.teacherPathData(S.teacher, fresh).then(renderPath).catch(fail);
   else if (T.tab === 'grid') API.teacherGrid(S.teacher, fresh).then(renderGrid).catch(fail);
   else API.teacherHome(S.teacher, fresh).then(renderTeacher).catch(fail);
@@ -144,5 +147,5 @@ $('#t-main').addEventListener('change', function (ev) {
   else if (t.matches('input[data-sub]')) { var k = $('input[data-skill="' + t.getAttribute('data-of') + '"]'); if (k) syncSkillBox(k); }
   if ($('#t-saved')) $('#t-saved').textContent = 'Not saved';
 });
-function alertLine(m) { var p = $('#t-panel'); if (p) p.insertAdjacentHTML('afterbegin', '<p class="err">' + esc(m) + '</p>'); }
+function alertLine(m) { var p = $('#t-panel') || $('#scr-go.on #go-info') || $('#t-main'); if (p) p.insertAdjacentHTML('afterbegin', '<p class="err">' + esc(m) + '</p>'); }
 </script>

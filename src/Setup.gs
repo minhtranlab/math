@@ -14,8 +14,9 @@ var TABS_ = [
   [TAB.SKILL_STATUS, ['student_code', 'subskill', 'level', 'steps', 'status', 'n_attempts', 'n_right1', 'n_wrong2', 'n_hints', 'last_at', 'updated_at', 'position', 'history', 'override']],
   [TAB.ATTEMPTS, ['attempt_id', 'student_code', 'kind', 'scope', 'qid', 'subskill', 'skill', 'difficulty', 'started_at', 'finished_at', 'status',
                   'n_tries', 'try1_correct', 'correct', 'result', 'answer_shown', 'hint_used', 'n_hints', 'time_try1_sec', 'time_total_sec',
-                  'slow_above_sec', 'pace', 'step_credit', 'device', 'note', 'level_at_start', 'counted', 'time_answer_sec', 'away_n', 'away_sec', 'session_id', 'helped']],
-  [TAB.TRIES, ['attempt_id', 'student_code', 'qid', 'try_no', 'answer', 'correct', 'mistake_type', 'time_sec', 'client_said', 'at', 'time_answer_sec']],
+                  'slow_above_sec', 'pace', 'step_credit', 'device', 'note', 'level_at_start', 'counted', 'time_answer_sec', 'away_n', 'away_sec', 'session_id', 'helped',
+                  'mistake_type_teacher', 'mistake_note', 'tagged_at']],
+  [TAB.TRIES, ['attempt_id', 'student_code', 'qid', 'try_no', 'answer', 'correct', 'mistake_type', 'time_sec', 'client_said', 'at', 'time_answer_sec', 'set_id']],
   [TAB.HINTS, ['attempt_id', 'student_code', 'qid', 'subskill', 'after_tries', 'at']],
   [TAB.REVIEW, ['student_code', 'qid', 'subskill', 'attempt_id', 'reason', 'added_at', 'status', 'cleared_at', 'cleared_by', 'note']],
   [TAB.QUESTIONS, ['qid', 'batch', 'version', 'version_of', 'type', 'topic', 'skill', 'subskill', 'difficulty', 'level', 'key', 'accepted', 'round',
@@ -25,6 +26,13 @@ var TABS_ = [
   [TAB.TIME_NORMS, ['difficulty', 'qtype', 'target_sec', 'slow_above_sec', 'note']],
   [TAB.LEVEL_OVERRIDES, ['student_code', 'subskill', 'set_to', 'set_by', 'set_at', 'note']],
   [TAB.TEACHER_SESSIONS, ['session_id', 'student_code', 'subskills', 'level', 'begin_sub', 'begin_qid', 'next_qid', 'next_set_at', 'status', 'created_at', 'closed_at', 'note']],
+  [TAB.ASSIGNMENTS, ['assignment_id', 'title', 'target_type', 'target_id', 'topics', 'qids', 'available_from', 'due', 'status', 'created_at', 'created_in', 'note']],
+  [TAB.SETS, ['set_id', 'student_code', 'kind', 'assignment_id', 'n', 'qids', 'created_at', 'status', 'state_json', 'progress', 'last_saved_at', 'copy_token',
+              'device', 'submitted_at', 'first_try', 'best_score', 'n_blank', 'time_used_min', 'note']],
+  [TAB.RESPONSES, ['set_id', 'student_code', 'qid', 'order', 'skill', 'subskill', 'difficulty', 'level', 'type', 'try1_answer', 'try1_correct', 'final_answer',
+                   'best_correct', 'n_tries', 'locked', 'fixed_at', 'time_try1_sec', 'time_total_sec', 'slow_above_sec', 'pace', 'mistake_auto', 'attempt_id',
+                   'submitted_at', 'mistake_type', 'mistake_note', 'tagged_at', 'tagged_in']],
+  [TAB.ASKS, ['ask_id', 'student_code', 'kind', 'set_id', 'attempt_id', 'qid', 'note', 'at', 'status', 'resolved_at', 'resolved_by']],
   [TAB.DICTIONARY, ['tab', 'column', 'meaning', 'example']]
 ];
 

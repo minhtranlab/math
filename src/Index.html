@@ -64,8 +64,56 @@
     <div class="qwrap">
       <div class="tsbar hidden" id="q-ts"><b>Practise with teacher</b></div>
       <div class="qhead"><p class="eyebrow" id="q-sub"></p><span class="cnt" id="q-cnt"></span></div>
-      <div class="tools" data-host="q-work"><button type="button" class="tool" data-tool="pen">Pen</button><button type="button" class="tool" data-tool="calc">Calculator</button><button type="button" class="tool" data-tool="notes">Notes</button><button type="button" class="tool" data-tool="space">More space</button><button type="button" class="tool" data-tool="snap">Snapshot</button></div>
+      <div class="tools" data-host="q-work"><button type="button" class="tool" data-tool="pen">Pen</button><button type="button" class="tool" data-tool="calc">Calculator</button><button type="button" class="tool" data-tool="notes">Notes</button><button type="button" class="tool" data-tool="space">More space</button><button type="button" class="tool" data-tool="snap">Snapshot</button><button type="button" class="tool ask" data-ask="q">Ask teacher</button></div>
+      <div class="askbox hidden" data-askbox="q"></div>
       <div class="work" id="q-work"><div class="qcard" id="q-card"><div class="spinner"></div></div><div class="spaces"></div></div>
+    </div>
+  </section>
+
+  <!-- ============ Assignment set (#8): free navigation, autosave, Check Your Work → Submit ============ -->
+  <section id="scr-set" class="screen">
+    <header class="top"><button class="wm" data-go="home" type="button" title="Home"><i></i>Math Skill Bank</button>
+      <div class="who"><span class="sync" id="set-sync"></span><button class="link" data-go="home" type="button">Home</button></div></header>
+    <div class="qwrap">
+      <div class="qhead"><p class="eyebrow" id="set-title"></p><span class="cnt" id="set-pos"></span></div>
+      <div class="qnav" id="set-nav"></div>
+      <div class="tools" data-host="set-work"><button type="button" class="tool" data-tool="pen">Pen</button><button type="button" class="tool" data-tool="calc">Calculator</button><button type="button" class="tool" data-tool="notes">Notes</button><button type="button" class="tool" data-tool="space">More space</button><button type="button" class="tool" data-tool="snap">Snapshot</button><button type="button" class="tool ask" data-ask="set">Ask teacher</button></div>
+      <div class="askbox hidden" data-askbox="set"></div>
+      <div class="work" id="set-work"><div class="qcard" id="set-card"></div><div class="spaces"></div></div>
+      <div class="actions" id="set-actions"></div>
+    </div>
+  </section>
+
+  <!-- ============ Fix wrong answers / Open (read-only review) (#8) ============ -->
+  <section id="scr-fix" class="screen">
+    <header class="top"><button class="wm" data-go="home" type="button" title="Home"><i></i>Math Skill Bank</button>
+      <div class="who"><button class="link" id="fix-back" type="button">Result</button><button class="link" data-go="home" type="button">Home</button></div></header>
+    <div class="qwrap">
+      <div class="qhead"><p class="eyebrow" id="fix-title"></p><span class="cnt" id="fix-pos"></span></div>
+      <div class="qnav" id="fix-nav"></div>
+      <div class="tools" data-host="fix-work"><button type="button" class="tool" data-tool="pen">Pen</button><button type="button" class="tool" data-tool="calc">Calculator</button><button type="button" class="tool" data-tool="notes">Notes</button><button type="button" class="tool" data-tool="space">More space</button><button type="button" class="tool" data-tool="snap">Snapshot</button><button type="button" class="tool ask" data-ask="fix">Ask teacher</button></div>
+      <div class="askbox hidden" data-askbox="fix"></div>
+      <div class="work" id="fix-work"><div class="qcard" id="fix-card"></div><div class="spaces"></div></div>
+    </div>
+  </section>
+
+  <!-- ============ Result · My history (#8; ONE result view, lesson 10) ============ -->
+  <section id="scr-hw" class="screen">
+    <header class="top"><button class="wm" data-go="home" type="button" title="Home"><i></i>Math Skill Bank</button>
+      <div class="who"><button class="link" data-hw="history" type="button">My history</button><button class="link" data-go="home" type="button">Home</button></div></header>
+    <main class="main" id="hw-main"><div class="spinner"></div></main>
+  </section>
+
+  <!-- ============ Teacher: Go over one question (#8; SML go-over tools) ============ -->
+  <section id="scr-go" class="screen">
+    <header class="top"><button class="wm" data-go="teacher" type="button" title="Back"><i></i>Math Skill Bank</button>
+      <div class="who"><button class="btn ghost small" id="go-prev" type="button">‹ Prev</button><span id="go-pos"></span><button class="btn ghost small" id="go-next" type="button">Next ›</button><button class="link" id="go-back" type="button">List</button></div></header>
+    <div class="qwrap">
+      <div class="tsbar" id="go-info"></div>
+      <div class="qhead"><p class="eyebrow" id="go-sub"></p><span class="cnt" id="go-qid"></span></div>
+      <div class="tools" data-host="go-work"><button type="button" class="tool" data-tool="pen">Pen</button><button type="button" class="tool" data-tool="calc">Calculator</button><button type="button" class="tool" data-tool="notes">Notes</button><button type="button" class="tool" data-tool="space">More space</button><button type="button" class="tool" data-tool="snap">Snapshot</button><button type="button" class="tool" id="go-ans">Show answer</button></div>
+      <div class="work" id="go-work"><div class="qcard" id="go-card"></div><div class="spaces"></div></div>
+      <div id="go-students"></div>
     </div>
   </section>
 
@@ -110,5 +158,7 @@
   <?!= include('Tools'); ?>
   <?!= include('TeacherPage'); ?>
   <?!= include('WithTeacher'); ?>
+  <?!= include('HomeworkPage'); ?>
+  <?!= include('HomeworkTeacher'); ?>
 </body>
 </html>

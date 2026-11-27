@@ -25,6 +25,10 @@ var SETTING_MEANINGS_ = {
   ms_window_days: 'My skills: first-try % counts the answers of the last n days.',
   class_max_tries: 'Practise with teacher: tries before the answer is shown.',
   desmos_api_key: 'Desmos calculator API key (empty = the Desmos demo key). Type it here only.',
+  mcq_max_tries: 'Assignments: multiple-choice tries in total (the first try + fixes). Typed answers: unlimited fixes.',
+  ask_note_max: 'Ask teacher: longest note (characters).',
+  autosave_sec: 'Assignments: the open set is saved at least this often (and after every answer).',
+  mistake_types: 'Teacher mistake types for tagging wrong answers, separated by ";" (dropdown order). The sub-skill\'s own tags from the skill map are listed too.',
   code_version: 'Code version the Sheet was last updated for.'
 };
 
@@ -46,6 +50,10 @@ var TAB_TEXT_ = [
   ['Item_Overrides', 'Teacher changes to one question (difficulty or status) — the files are never edited by hand.'],
   ['Time_Norms', 'Seconds per difficulty and answer type. slow_above_sec decides "in time" vs "slow".'],
   ['Teacher_Sessions', 'One row per "Practise with teacher" the teacher assigned: the student, its sub-skills, start level, where to begin, the next question the teacher chose (Assign next), open / closed.'],
+  ['Assignments', 'One row per assignment the teacher published (#8): title, to a student or a class, the frozen list of questions, from / due, status published / closed / deleted.'],
+  ['Sets', 'One row per student × assignment: their copy of the question list, state while working (autosaved), First Try and Best Score after Submit.'],
+  ['Responses', 'One row per question of a submitted set: first try (graded on Submit), fixes (best_correct, n_tries, locked), mistake type (auto from the wrong choice; teacher tag).'],
+  ['Asks', 'One row per "Ask teacher" (assignment or practice question): note, open / resolved.'],
   ['Dictionary', 'Every column of every tab and what it means.']
 ];
 
@@ -53,6 +61,11 @@ var DICT_ = {
   Attempts: { attempt_id: 'ID of this question opening', kind: 'practice / sample / review', scope: 'what the student chose: path, sub:<ID>, review',
               result: 'right_1 = right on try 1 · right_2 = right on try 2 · wrong_2 = wrong twice (answer shown)', pace: 'in_time / slow (try 1 right only)',
               step_credit: '1 / 0.5 / 0 (Settings)', hint_used: 'Yes if the Hint button was pressed' },
+  Responses: { try1_correct: '1 = right on the first try (Submit)', best_correct: '1 = right now (first try or a fix)', locked: '1 = no MCQ tries left',
+               mistake_auto: 'tag of the wrong first answer (from the question file)', mistake_type: 'teacher tag (Settings mistake_types or a skill-map tag)',
+               attempt_id: 'the Attempts row of the first try (path step credit, same rule as Practice)' },
+  Sets: { state_json: 'answers + current question while working (autosave)', first_try: 'right on the first try', best_score: 'right after fixes' },
+  Asks: { kind: 'assignment / practice', status: 'open / resolved / withdrawn', resolved_by: 'teacher (inbox) / tag (a mistake type was set)' },
   Tries: { try_no: '1 or 2', mistake_type: 'tag of the wrong choice / wrong value (from the question file)', client_said: 'what the browser showed (Yes/No); differs from correct only if something is wrong' },
   Paths: { target_type: 'skill or subskill', target_id: 'an ID from Skills (e.g. TRIG.RT or TRIG.RT.SIDE_NUM)', active: 'No = removed from the path (row kept)' },
   Questions: { type: 'mcq / num', round: 'rounding rule of a numeric answer: 3sf, 1dp, int, exact', hint_status: 'reviewed / draft (draft = never live)' }

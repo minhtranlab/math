@@ -8,7 +8,7 @@ function $$(s, r) { return Array.prototype.slice.call((r || document).querySelec
 function esc(s) { return String(s === undefined || s === null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 function show(id) {
   $$('.screen').forEach(function (s) { s.classList.toggle('on', s.id === id); }); window.scrollTo(0, 0);
-  if (id !== 'scr-q' && id !== 'scr-tq' && typeof toolsOff === 'function') toolsOff();
+  if (['scr-q', 'scr-tq', 'scr-set', 'scr-fix', 'scr-go'].indexOf(id) < 0 && typeof toolsOff === 'function') toolsOff();
 }
 function typeset(el) { try { if (window.MathJax && MathJax.typesetPromise) MathJax.startup.promise.then(function () { return MathJax.typesetPromise([el]); }); } catch (e) {} }
 function store(k, v) { try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) {} }
@@ -44,6 +44,7 @@ document.addEventListener('click', function (ev) {
 
 /* ---------------- home ---------------- */
 function goHome() {
+  if (typeof hwLeave === 'function') hwLeave();
   if (!S.code) { show('scr-login'); return; }
   location.hash = 'home';
   show('scr-home'); $('#home-list').innerHTML = '<div class="spinner"></div>';
@@ -74,6 +75,7 @@ function renderHome(h) {
   if (h.teacher_open) out += '<div class="card tcard"><div><p class="eyebrow">Practise with teacher</p><h3>' + esc(h.teacher_open.next_name || 'All solid') + '</h3>' +
                              '<p class="sub">' + h.teacher_open.solid + ' of ' + h.teacher_open.n + ' sub-skill' + (h.teacher_open.n === 1 ? '' : 's') + ' solid</p></div>' +
                              '<button class="btn big" type="button" data-start="teacher" data-sid="' + esc(h.teacher_open.session_id) + '">Start</button></div><div style="height:14px"></div>';
+  out += hwCardsHtml(h.assigned);                                          // #8: "Assigned by your teacher" (below Practise with teacher)
   if (h.path.length) {
     var nSolid = h.path.filter(function (p) { return p.solid; }).length;
     out += '<div class="card"><div><p class="eyebrow">My path · ' + nSolid + ' of ' + h.path.length + ' solid</p>' +
@@ -100,6 +102,7 @@ function renderHome(h) {
     out += '<div class="card"><div><h3>' + h.review.length + ' to review</h3><p class="sub">' + h.review.slice(0, 4).map(function (r) { return esc(r.subskill); }).join(' · ') + '</p></div>' +
            '<button class="btn ghost big" type="button" data-start="review">Review</button></div>';
   } else out += '<p class="empty">Nothing to review.</p>';
+  out += '<div class="actions"><button class="btn ghost" type="button" data-hw="history">My history</button></div>';
   $('#home-list').innerHTML = out;
 }
 
@@ -176,7 +179,7 @@ function renderQuestion(r) {
        (q.has_hint ? '<button class="btn ghost" id="q-hint" type="button">Hint</button>' : '') + '<span class="sync" id="q-sync"></span></div>';
   h += '<div id="q-hintbox"></div><div id="q-fb"></div>';
   $('#q-card').innerHTML = h;
-  toolsHost('q-work', 'S:' + r.attempt_id);
+  toolsHost('q-work', 'S:' + r.attempt_id); askSync('q');
   // resume: tries already made on this question
   (r.tries || []).forEach(function (t) { markTried(t.answer); });
   if (r.hint_used && r.hint_html) showHint(r.hint_html);

@@ -52,7 +52,7 @@ function homeData(code) {
   var pp = pathProgress_(code), att = attemptsOf_(code).filter(function (a) { return clean_(a.status) === 'done'; });
   var rv = openReview_(code).map(function (r) { return { qid: clean_(r.qid), subskill: subskillName_(clean_(r.subskill)), added: dateStr_(r.added_at) }; });
   var nx = nextPathSub_(pp.path), ts = tsOpenFor_(code);
-  return { teacher_open: ts ? tsCard_(ts, code) : null, name: String(st.name || ''), path: pp.path, skills: pp.skills, next: nx, next_name: nx ? subskillName_(nx) : '',
+  return { teacher_open: ts ? tsCard_(ts, code) : null, assigned: hwCards_(code), name: String(st.name || ''), path: pp.path, skills: pp.skills, next: nx, next_name: nx ? subskillName_(nx) : '',
            sample_n: pp.path.length ? 0 : livePool_().length, review: rv, n_done: att.length };
 }
 

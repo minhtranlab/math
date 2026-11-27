@@ -209,6 +209,57 @@ h2.h2:first-child { margin-top: 4px; }
 .pen-on.finger-scrolls .pen-cv { touch-action: pan-x pan-y; }
 .pen-on { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 
+.nxpanel { margin: 0 0 14px; }
+
+/* ---------- assignments (#8) ---------- */
+.card.hwcard { border-color: #e6c06b; background: #fffaf0; }
+.late { color: var(--red); }
+.qnav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.qn { min-width: 38px; height: 38px; border: 1.5px solid var(--line); background: #fff; border-radius: 10px; font: 700 14px var(--sans); color: var(--ink); position: relative; }
+.qn.done { background: var(--acc-soft); border-color: var(--acc-faint); }
+.qn.on { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc) inset; }
+.qn.asked::after { content: '?'; position: absolute; top: -7px; right: -6px; background: #f5b400; color: #fff; border-radius: 50%; width: 16px; height: 16px; font-size: 11px; line-height: 16px; }
+.qn.chk { color: var(--acc-dark); }
+.qn.st-fixed, .qn.st-right { background: var(--green-soft); border-color: #b7dfc3; } .qn.st-locked, .qn.st-wrong { background: var(--red-soft); border-color: #f3c3bd; }
+.chkgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin: 16px 0; }
+.qn.big { height: 64px; font-size: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.qn.big small { font: 600 11px var(--sans); color: var(--muted); }
+.warnline { color: var(--warn); font-weight: 600; margin-top: 8px; }
+.stats { display: flex; gap: 14px; flex-wrap: wrap; margin: 14px 0 4px; }
+.stat { border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 22px; min-width: 150px; }
+.stat b { display: block; font: 800 32px var(--disp); }
+.stat span { color: var(--muted); font-weight: 600; }
+.mlist { margin: 0; padding-left: 20px; } .mlist li { margin: 4px 0; }
+.qchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.qchip { border-radius: 999px; padding: 4px 12px; font: 700 13px var(--sans); background: var(--bg-2); }
+.qchip.st-right, .qchip.st-fixed { background: var(--green-soft); color: var(--green); } .qchip.st-wrong, .qchip.st-locked { background: var(--red-soft); color: var(--red); }
+.tool.ask { border-color: #e6c06b; color: var(--warn); } .tool.ask.on { background: #fff4d6; }
+.askbox { border: 1.5px solid #e6c06b; background: #fffaf0; border-radius: 12px; padding: 10px 12px; margin: 0 0 12px; }
+.askbox textarea { width: 100%; min-height: 60px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: 15px var(--sans); }
+.askbox .actions { margin-top: 8px; }
+.hwform { display: flex; flex-wrap: wrap; gap: 12px 18px; margin: 8px 0 6px; }
+.hwform label { display: flex; flex-direction: column; gap: 4px; font: 600 13px var(--sans); color: var(--muted); }
+.hwtree .tk { margin-top: 12px; }
+.hwsub { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 4px 0 4px 18px; border-bottom: 1px solid var(--line2); }
+.hwsub label { padding: 0; }
+.hwsub.off { opacity: .5; }
+.cnts { color: var(--muted); font-size: 13px; }
+.dcount { margin-right: 6px; }
+.hwopts { display: inline-flex; gap: 8px; align-items: center; }
+.nin { width: 62px; border: 1.5px solid var(--line); border-radius: 8px; padding: 4px 6px; font: 600 14px var(--sans); }
+.dk { display: inline-flex !important; flex-direction: row !important; gap: 3px; align-items: center; font: 700 13px var(--sans); }
+.pickt { margin: 12px 0; }
+.hwrow .studs { display: flex; flex-wrap: wrap; gap: 6px; }
+.stud { font-size: 13px; border-radius: 999px; padding: 3px 10px; background: var(--bg-2); }
+.stud.st-done { background: var(--green-soft); color: var(--green); } .stud.st-in-progress { background: #fff4d6; color: var(--warn); }
+.gsum { font-size: 14px; } .gsum.g1 { color: var(--red); font-weight: 700; } .gsum.g2 { color: var(--warn); font-weight: 700; }
+#go-students { margin-top: 10px; }
+.gostud { border: 1px solid var(--line2); border-radius: 12px; padding: 8px 12px; margin: 8px 0; }
+.gostud .tbar { margin: 2px 0; }
+.asknote { background: #fffaf0; border-left: 4px solid #e6c06b; padding: 6px 10px; border-radius: 0 8px 8px 0; margin: 6px 0; }
+.msel { max-width: 340px; }
+.mnote { min-width: 200px; text-transform: none; letter-spacing: 0; }
+
 @media (max-width: 700px) {
   .top { padding: 14px 16px; } .wm { font-size: 20px; }
   .main, .qwrap { padding: 8px 16px 40px; }

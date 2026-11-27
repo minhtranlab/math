@@ -1,0 +1,249 @@
+<script>
+/* ===================== MSB — student: SAT-style assignments (#8) =====================
+   Home card "Assigned by your teacher" → the set: one question at a time, free navigation (numbers), autosave (after
+   every answer + every autosave_sec), Check Your Work → Submit → the result (First Try, Best Score, by sub-skill, mistake
+   types) → Fix wrong answers (MCQ 3 tries in total, typed answers unlimited; instant ✓/✗ from the encoded key of the ONE
+   open item, the server re-grades) → My history → Open (read-only). The correct answer is never shown (SAT rules).
+   Ask teacher (+ note) on every question screen: Practice, the set, Fix. Tools row = Tools.html. */
+var H = { set: null, cur: 0, ans: {}, t: {}, at: {}, shownAt: 0, dirty: false, saveT: 0, tickT: 0, asks: {}, fix: null, fcur: 0, res: null, review: false };
+
+/* ---------------- home ---------------- */
+function hwCardsHtml(list) {
+  return (list || []).map(function (a) {
+    return '<div class="card hwcard"><div><p class="eyebrow">Assigned by your teacher</p><h3>' + esc(a.title) + '</h3>' +
+           '<p class="sub">' + a.n + ' questions' + (a.started ? ' · ' + a.answered + '/' + a.n + ' answered' : '') + (a.due ? ' · due ' + esc(a.due) : '') + (a.late ? ' · <b class="late">late</b>' : '') + '</p></div>' +
+           '<button class="btn big" type="button" data-hwstart="' + esc(a.assignment_id) + '">' + (a.started ? 'Continue' : 'Start') + '</button></div><div style="height:14px"></div>';
+  }).join('');
+}
+$('#home-list').addEventListener('click', function (ev) {
+  var b = ev.target.closest('[data-hwstart]'); if (b) { b.disabled = true; hwOpen(API.hwStart(S.code, b.getAttribute('data-hwstart'), deviceId())); return; }
+});
+document.addEventListener('click', function (ev) { var h = ev.target.closest('[data-hw]'); if (h && h.getAttribute('data-hw') === 'history') hwHistory(); });
+
+/* ---------------- the set ---------------- */
+function hwOpen(p) {
+  location.hash = 'set'; show('scr-set');
+  $('#set-card').innerHTML = '<div class="spinner"></div>'; $('#set-nav').innerHTML = ''; $('#set-actions').innerHTML = ''; $('#set-sync').textContent = '';
+  p.then(function (r) {
+    if (r.submitted) { hwShowResult(r.result); return; }
+    H.set = r; H.ans = r.state.ans || {}; H.t = r.state.t || {}; H.at = r.state.at || {}; H.asks = r.asks || {}; H.dirty = false;
+    $('#set-title').textContent = r.title;
+    clearInterval(H.tickT); H.tickT = setInterval(function () { if (H.dirty) hwSave(); }, Math.max(5, r.autosave_sec || 20) * 1000);
+    hwGo(Math.min(r.state.cur || 0, r.questions.length - 1));
+  }).catch(function (e) { $('#set-card').innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p><div class="actions"><button class="btn" type="button" data-go="home">Home</button></div>'; });
+}
+function hwQ() { return H.set.questions[H.cur]; }
+function hwClock() {                                                      // seconds on the question shown now
+  if (!H.set || H.cur < 0 || !H.shownAt) return;
+  var q = hwQ(), d = (Date.now() - H.shownAt) / 1000; H.shownAt = Date.now();
+  if (q && d > 0) H.t[q.qid] = Math.round(((H.t[q.qid] || 0) + d) * 10) / 10;
+}
+function qHtml(q, sel, typed, ro) {
+  var h = '<div class="stem">' + q.stem_html + '</div>';
+  q.figures.forEach(function (f) { h += '<div class="fig"><img src="' + esc(f.src) + '" alt="' + esc(f.alt) + '"' + (f.width ? ' style="width:' + esc(f.width) + '"' : '') + '></div>'; });
+  if (q.type === 'mcq') h += '<div class="choices">' + q.choices.map(function (c) {
+    return '<button type="button" class="ch' + (sel === c.label ? ' sel' : '') + '" data-l="' + esc(c.label) + '"' + (ro ? ' disabled' : '') + '><span class="lt">' + esc(c.label) + '</span><span>' + c.html + '</span></button>'; }).join('') + '</div>';
+  else h += '<div class="numrow"><input class="num hwnum" inputmode="decimal" autocomplete="off" aria-label="Your answer" placeholder="Answer" value="' + esc(typed || '') + '"' + (ro ? ' disabled' : '') + '>' +
+            (q.unit ? '<span class="unit">' + esc(q.unit) + '</span>' : '') + '</div>';
+  return h;
+}
+function hwGo(i) {
+  hwClock();
+  if (i >= H.set.questions.length) { hwCheckPage(); return; }
+  H.cur = Math.max(0, i); H.shownAt = Date.now();
+  var q = hwQ();
+  $('#set-card').innerHTML = qHtml(q, H.ans[q.qid], H.ans[q.qid], false);
+  $('#set-pos').textContent = 'Question ' + (H.cur + 1) + ' of ' + H.set.questions.length;
+  hwNav(); askSync('set');
+  $('#set-actions').innerHTML = '<button class="btn ghost" type="button" data-hwnav="' + (H.cur - 1) + '"' + (H.cur ? '' : ' disabled') + '>Back</button>' +
+    (H.cur < H.set.questions.length - 1 ? '<button class="btn big" type="button" data-hwnav="' + (H.cur + 1) + '">Next</button>' : '<button class="btn big" type="button" data-hwnav="' + H.set.questions.length + '">Check Your Work</button>');
+  toolsHost('set-work', 'H:' + H.set.set_id + ':' + q.qid);
+  typeset($('#set-card'));
+  var inp = $('#set-card .hwnum'); if (inp) inp.focus();
+}
+function hwNav() {
+  $('#set-nav').innerHTML = H.set.questions.map(function (q, i) {
+    return '<button type="button" class="qn' + (H.ans[q.qid] ? ' done' : '') + (i === H.cur ? ' on' : '') + (H.asks[q.qid] !== undefined ? ' asked' : '') + '" data-hwnav="' + i + '">' + (i + 1) + '</button>';
+  }).join('') + '<button type="button" class="qn chk' + (H.cur >= H.set.questions.length ? ' on' : '') + '" data-hwnav="' + H.set.questions.length + '">✓</button>';
+}
+function hwChanged(v) {
+  var q = hwQ(); if (!q) return;
+  if (v) H.ans[q.qid] = v; else delete H.ans[q.qid];
+  hwClock(); H.at[q.qid] = H.t[q.qid] || 0;
+  H.dirty = true; clearTimeout(H.saveT); H.saveT = setTimeout(hwSave, 1500);
+  $('#set-sync').textContent = ''; hwNav();
+}
+function hwState() { return { ans: H.ans, cur: H.cur, t: H.t, at: H.at }; }
+function hwSave() {
+  if (!H.set || H.saving) return Promise.resolve();
+  hwClock(); H.dirty = false; H.saving = true; $('#set-sync').textContent = 'Saving…';
+  return API.hwSave(S.code, H.set.set_id, { copy: H.set.copy, state: hwState() }).then(function (r) {
+    H.saving = false;
+    if (r.other_copy) { hwStop(r.msg); return; }
+    if (r.submitted) { hwStop('This set is already submitted.'); return; }
+    $('#set-sync').textContent = 'Saved ' + (r.saved_at || '');
+  }).catch(function () { H.saving = false; H.dirty = true; $('#set-sync').textContent = 'Not saved — will retry'; });
+}
+function hwStop(msg) { clearInterval(H.tickT); H.set = null; $('#set-card').innerHTML = '<p class="err">' + esc(msg) + '</p><div class="actions"><button class="btn" type="button" data-go="home">Home</button></div>'; $('#set-actions').innerHTML = ''; }
+/** Leaving the set (Home, history): save what is not saved yet. */
+function hwLeave() { if (H.set && H.dirty) hwSave(); clearInterval(H.tickT); }
+document.addEventListener('visibilitychange', function () { if (document.hidden && H.set && H.dirty && $('#scr-set').classList.contains('on')) hwSave(); });
+function hwCheckPage() {
+  H.cur = H.set.questions.length; H.shownAt = 0;
+  var miss = H.set.questions.filter(function (q) { return !H.ans[q.qid]; }).length;
+  $('#set-pos').textContent = 'Check Your Work';
+  $('#set-card').innerHTML = '<h2 class="h2" style="margin-top:0">Check Your Work</h2><p class="muted">Press a number to go back to a question. When you are ready, press Submit.</p>' +
+    '<div class="chkgrid">' + H.set.questions.map(function (q, i) {
+      return '<button type="button" class="qn big' + (H.ans[q.qid] ? ' done' : '') + (H.asks[q.qid] !== undefined ? ' asked' : '') + '" data-hwnav="' + i + '">' + (i + 1) + '<small>' + (H.ans[q.qid] ? 'Answered' : 'Unanswered') + '</small></button>';
+    }).join('') + '</div>' + (miss ? '<p class="warnline">' + miss + ' question' + (miss === 1 ? ' is' : 's are') + ' unanswered.</p>' : '');
+  hwNav(); toolsHost('set-work', '');
+  $('#set-actions').innerHTML = '<button class="btn ghost" type="button" data-hwnav="' + (H.set.questions.length - 1) + '">Back</button><button class="btn big" type="button" id="hw-submit"' + (miss ? ' data-miss="1"' : '') + '>Submit</button>';
+}
+function hwSubmit(btn) {
+  if (btn.getAttribute('data-miss') === '1') { btn.removeAttribute('data-miss'); btn.textContent = 'Submit anyway'; return; }
+  btn.disabled = true; btn.textContent = 'Submitting…'; clearInterval(H.tickT); clearTimeout(H.saveT);
+  API.hwSubmit(S.code, H.set.set_id, { copy: H.set.copy, state: hwState() }).then(function (r) {
+    if (r.other_copy) { hwStop(r.msg); return; }
+    H.set = null; hwShowResult(r);
+  }).catch(function (e) { btn.disabled = false; btn.textContent = 'Submit'; $('#set-sync').textContent = API.msg(e); });
+}
+$('#scr-set').addEventListener('click', function (ev) {
+  var n = ev.target.closest('[data-hwnav]'); if (n && !n.disabled) { hwGo(Number(n.getAttribute('data-hwnav'))); return; }
+  var ch = ev.target.closest('#set-card .ch'); if (ch && !ch.disabled) { var l = ch.getAttribute('data-l'), was = ch.classList.contains('sel'); $$('#set-card .ch').forEach(function (b) { b.classList.toggle('sel', b === ch && !was); }); hwChanged(was ? '' : l); return; }
+  var sb = ev.target.closest('#hw-submit'); if (sb) hwSubmit(sb);
+});
+$('#scr-set').addEventListener('input', function (ev) { if (ev.target.matches('.hwnum')) hwChanged(ev.target.value.trim()); });
+
+/* ---------------- result (one view, lesson 10) ---------------- */
+var HWS = { right: '✓', fixed: '✓ fixed', wrong: '✗', locked: '✗', blank: '—' };
+function hwShowResult(r) {
+  H.res = r; location.hash = 'result'; show('scr-hw');
+  var h = '<p class="eyebrow">Assignment · ' + esc(r.date) + '</p><h2 class="h2" style="margin-top:0">' + esc(r.title) + '</h2>' +
+    '<div class="stats"><div class="stat"><b>' + r.first_try + '/' + r.n + '</b><span>First Try</span></div><div class="stat"><b>' + r.best + '/' + r.n + '</b><span>Best Score</span></div></div>' +
+    '<div class="actions">' + (r.to_fix ? '<button class="btn big" type="button" data-hwfix="' + esc(r.set_id) + '">Fix wrong answers (' + r.to_fix + ')</button>' : '') +
+    '<button class="btn ghost" type="button" data-hwopen="' + esc(r.set_id) + '">Open</button><button class="btn ghost" type="button" data-go="home">Home</button></div>' +
+    '<h2 class="h2">By sub-skill</h2><div class="tscroll"><table class="tbl"><thead><tr><th>Sub-skill</th><th class="r">Questions</th><th class="r">Right 1st try</th><th class="r">Best</th></tr></thead><tbody>' +
+    r.subskills.map(function (s) { return '<tr><td>' + esc(s.name) + '</td><td class="r">' + s.n + '</td><td class="r">' + s.right1 + '</td><td class="r">' + s.best + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  if (r.mistakes.length) h += '<h2 class="h2">Mistakes to watch</h2><ul class="mlist">' + r.mistakes.map(function (m) { return '<li>' + esc(m.text) + (m.n > 1 ? ' <span class="muted">×' + m.n + '</span>' : '') + '</li>'; }).join('') + '</ul>';
+  h += '<h2 class="h2">Questions</h2><div class="qchips">' + r.questions.map(function (q) { return '<span class="qchip st-' + q.status + '" title="' + esc(q.subskill) + '">Q' + q.no + ' ' + HWS[q.status] + '</span>'; }).join('') + '</div>';
+  $('#hw-main').innerHTML = h;
+}
+function hwHistory() {
+  hwLeave(); location.hash = 'history'; show('scr-hw'); $('#hw-main').innerHTML = '<div class="spinner"></div>';
+  API.hwHistory(S.code).then(function (d) {
+    $('#hw-main').innerHTML = '<h2 class="h2" style="margin-top:0">My history</h2>' + (d.sets.length ? '<div class="tscroll"><table class="tbl"><thead><tr><th>Date</th><th>Assignment</th><th class="r">First Try</th><th class="r">Best Score</th><th></th></tr></thead><tbody>' +
+      d.sets.map(function (s) { return '<tr><td>' + esc(s.date) + '</td><td>' + esc(s.title) + '</td><td class="r">' + s.first_try + '/' + s.n + '</td><td class="r">' + s.best + '/' + s.n + '</td><td class="r"><span class="wbtns">' +
+        '<button class="btn ghost small" type="button" data-hwres="' + esc(s.set_id) + '">Result</button><button class="btn ghost small" type="button" data-hwopen="' + esc(s.set_id) + '">Open</button>' +
+        (s.to_fix ? '<button class="btn small" type="button" data-hwfix="' + esc(s.set_id) + '">Fix (' + s.to_fix + ')</button>' : '') + '</span></td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="empty">No assignments submitted yet.</p>');
+  }).catch(function (e) { $('#hw-main').innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p>'; });
+}
+$('#hw-main').addEventListener('click', function (ev) {
+  var b;
+  if ((b = ev.target.closest('[data-hwfix]'))) { hwFixOpen(b.getAttribute('data-hwfix'), false); return; }
+  if ((b = ev.target.closest('[data-hwopen]'))) { hwFixOpen(b.getAttribute('data-hwopen'), true); return; }
+  if ((b = ev.target.closest('[data-hwres]'))) { b.disabled = true; API.hwResult(S.code, b.getAttribute('data-hwres')).then(hwShowResult).catch(function (e) { b.disabled = false; }); }
+});
+
+/* ---------------- Fix wrong answers · Open (read-only) ---------------- */
+function hwFixOpen(setId, review) {
+  H.review = review; location.hash = review ? 'open' : 'fix'; show('scr-fix');
+  $('#fix-card').innerHTML = '<div class="spinner"></div>'; $('#fix-nav').innerHTML = ''; $('#fix-title').textContent = '';
+  $$('#scr-fix [data-ask]').forEach(function (b) { b.classList.toggle('hidden', review); });
+  (review ? API.hwReview(S.code, setId) : API.hwFix(S.code, setId)).then(function (d) {
+    H.fix = d; H.asks = d.asks || {}; H.keys = {}; if (d.fk) H.keys[d.fk.qid] = d.fk;
+    $('#fix-title').textContent = (review ? 'Open · ' : 'Fix wrong answers · ') + d.title;
+    if (!d.items.length) { $('#fix-card').innerHTML = '<p class="empty">Nothing to fix — every question was right on the first try.</p>'; return; }
+    var first = 0; if (!review) d.items.some(function (o, i) { if (o.status === 'open') { first = i; return true; } return false; });
+    hwFixGo(first);
+  }).catch(function (e) { $('#fix-card').innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p>'; });
+}
+function hwFixItem() { return H.fix.items[H.fcur]; }
+function hwFixGo(i) {
+  H.fcur = Math.max(0, Math.min(H.fix.items.length - 1, i)); H.fixAt = Date.now();
+  var o = hwFixItem(), ro = H.review || o.status !== 'open';
+  var sel = '', typed = '';
+  var h = qHtml(o, '', o.status === 'open' ? '' : o.answer, ro);
+  if (H.review) h += '<div class="fb ' + (o.status === 'right' || o.status === 'fixed' ? 'ok' : 'no') + '">Your answer: <b>' + esc(o.answer || '—') + '</b>' + (o.first && o.first !== o.answer ? ' <span class="muted">(first: ' + esc(o.first) + ')</span>' : '') +
+                       ' · ' + ({ right: 'Right on the first try', fixed: 'Fixed', wrong: 'Not right', blank: 'Not answered' }[o.status]) + '</div>';
+  else {
+    h += '<div class="prev" id="fix-prev"></div><div class="actions" id="fix-actions">' + (o.status === 'open' ? '<button class="btn big" id="fix-check" type="button">Check</button>' : '') + '<span class="sync" id="fix-sync"></span></div><div id="fix-fb"></div>';
+  }
+  h += '<div class="actions"><button class="btn ghost" type="button" data-fixnav="' + (H.fcur - 1) + '"' + (H.fcur ? '' : ' disabled') + '>Back</button><button class="btn ghost" type="button" data-fixnav="' + (H.fcur + 1) + '"' + (H.fcur < H.fix.items.length - 1 ? '' : ' disabled') + '>Next</button></div>';
+  $('#fix-card').innerHTML = h;
+  if (!H.review) hwFixMarks();
+  $('#fix-pos').textContent = 'Question ' + o.no + ' · ' + (H.fcur + 1) + ' of ' + H.fix.items.length + (H.review ? '' : ' to fix');
+  $('#fix-nav').innerHTML = H.fix.items.map(function (x, k) { return '<button type="button" class="qn' + (k === H.fcur ? ' on' : '') + ' st-' + x.status + '" data-fixnav="' + k + '">' + x.no + '</button>'; }).join('');
+  toolsHost('fix-work', 'F:' + H.fix.set_id + ':' + o.qid); askSync('fix');
+  typeset($('#fix-card'));
+  if (!H.review && o.status === 'open' && !H.keys[o.qid]) API.hwFixKey(S.code, H.fix.set_id, o.qid).then(function (k) { if (k.ok) H.keys[k.qid] = k; }).catch(function () {});
+}
+function hwFixMarks() {
+  var o = hwFixItem(), fb = $('#fix-fb');
+  if (o.mcq) (o.tried || []).forEach(function (l) { var b = $('#fix-card .ch[data-l="' + l + '"]'); if (b) { b.classList.add('tried'); b.disabled = true; } });
+  else if ((o.tried_num || []).length) $('#fix-prev').innerHTML = 'Tried: ' + o.tried_num.map(function (x) { return '<s>' + esc(x) + '</s>'; }).join(' · ');
+  if (o.status === 'fixed') { fb.innerHTML = '<div class="fb ok"><span class="big">✓ Fixed</span></div>'; $$('#fix-card .ch').forEach(function (b) { if (b.getAttribute('data-l') === o.answer) b.classList.add('right'); }); }
+  else if (o.status === 'locked') fb.innerHTML = '<div class="fb no">No tries left. <span class="muted">Ask your teacher or wait for the next lesson.</span></div>';
+  else fb.innerHTML = o.mcq ? '<div class="fb ans">' + o.tries_left + ' tr' + (o.tries_left === 1 ? 'y' : 'ies') + ' left</div>' : '';
+}
+function hwFixAnswer() { var o = hwFixItem(); if (o.mcq) { var s = $('#fix-card .ch.sel'); return s ? s.getAttribute('data-l') : ''; } var i = $('#fix-card .hwnum'); return i ? i.value.trim() : ''; }
+function hwFixCheck() {
+  var o = hwFixItem(), a = hwFixAnswer(), fb = $('#fix-fb');
+  if (!a) { fb.innerHTML = '<div class="fb no">' + (o.mcq ? 'Choose an answer.' : 'Type your answer.') + '</div>'; return; }
+  var k = H.keys[o.qid], spec = k ? API.decodeKey(k.k, H.fix.set_id + '|' + o.qid) : null, ok = spec ? msbGrade_(spec, a) : null, sec = Math.round((Date.now() - H.fixAt) / 1000);
+  $('#fix-check').disabled = true; $('#fix-sync').textContent = 'Saving…';
+  if (ok !== null) hwFixShow(o, a, ok);
+  API.hwFixTry(S.code, H.fix.set_id, o.qid, a, sec, ok).then(function (r) {
+    if (!r.ok) { $('#fix-sync').textContent = ''; fb.innerHTML = '<div class="fb no">' + esc(r.msg) + '</div>'; if ($('#fix-check')) $('#fix-check').disabled = false; return; }
+    o.status = r.status; o.tries_left = r.tries_left; o.tried = r.tried || o.tried; o.n_tries = r.n_tries; if (r.correct) o.answer = a; else if (!o.mcq) (o.tried_num = o.tried_num || []).push(a);
+    H.fix.best = r.best; $('#fix-sync').textContent = 'Saved ✓ · Best Score ' + r.best + '/' + H.fix.n;
+    if (ok === null || r.mismatch) hwFixShow(o, a, r.correct);
+    hwFixGo(H.fcur); $('#fix-sync') && ($('#fix-sync').textContent = 'Saved ✓ · Best Score ' + r.best + '/' + H.fix.n);
+  }).catch(function (e) { $('#fix-sync').textContent = ''; fb.innerHTML = '<div class="fb no">Not saved — ' + esc(API.msg(e)) + ' Press Check again.</div>'; if ($('#fix-check')) $('#fix-check').disabled = false; });
+}
+function hwFixShow(o, a, ok) {
+  var fb = $('#fix-fb');
+  if (ok) { fb.innerHTML = '<div class="fb ok"><span class="big">✓ Correct</span></div>'; var b = $('#fix-card .ch.sel'); if (b) b.classList.add('right'); }
+  else fb.innerHTML = '<div class="fb no"><span class="big">✗</span> Not quite' + (o.mcq ? ' — ' + Math.max(0, (o.tries_left || 1) - 1) + ' tr' + ((o.tries_left || 1) - 1 === 1 ? 'y' : 'ies') + ' left' : ' — try again') + '</div>';
+}
+$('#scr-fix').addEventListener('click', function (ev) {
+  var n = ev.target.closest('[data-fixnav]'); if (n && !n.disabled) { hwFixGo(Number(n.getAttribute('data-fixnav'))); return; }
+  var ch = ev.target.closest('#fix-card .ch'); if (ch && !ch.disabled && !H.review) { $$('#fix-card .ch').forEach(function (b) { b.classList.toggle('sel', b === ch); }); return; }
+  if (ev.target.closest('#fix-check')) { hwFixCheck(); return; }
+  if (ev.target.closest('#fix-back')) { if (H.res && H.res.set_id === H.fix.set_id && !H.review) API.hwResult(S.code, H.fix.set_id).then(hwShowResult); else if (H.res) hwShowResult(H.res); else hwHistory(); }
+});
+$('#scr-fix').addEventListener('keydown', function (ev) { if (ev.key === 'Enter' && ev.target.matches('.hwnum')) hwFixCheck(); });
+
+/* ---------------- Ask teacher (Practice, set, Fix) ---------------- */
+function askRef(where) {
+  if (where === 'q') return S.cur ? { attempt_id: S.cur.attempt_id, key: S.cur.attempt_id } : null;
+  if (where === 'set') { var q = H.set && hwQ(); return q ? { set_id: H.set.set_id, qid: q.qid, key: q.qid } : null; }
+  if (where === 'fix') { var o = H.fix && hwFixItem(); return o ? { set_id: H.fix.set_id, qid: o.qid, key: o.qid } : null; }
+  return null;
+}
+function askMap(where) { if (where === 'q') { S.asks = S.asks || {}; return S.asks; } return H.asks; }
+function askSync(where) {
+  var b = $('[data-ask="' + where + '"]'), box = $('[data-askbox="' + where + '"]'), ref = askRef(where); if (!b) return;
+  var on = !!ref && askMap(where)[ref.key] !== undefined;
+  b.classList.toggle('on', on); b.textContent = on ? 'Asked ✓' : 'Ask teacher'; box.classList.add('hidden');
+}
+document.addEventListener('click', function (ev) {
+  var b = ev.target.closest('[data-ask]');
+  if (b) {
+    var where = b.getAttribute('data-ask'), box = $('[data-askbox="' + where + '"]'), ref = askRef(where); if (!ref) return;
+    if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+    var m = askMap(where), on = m[ref.key] !== undefined, max = (H.set && H.set.ask_note_max) || (H.fix && H.fix.ask_note_max) || 200;
+    box.innerHTML = '<textarea maxlength="' + max + '" placeholder="What is not clear? (optional)">' + esc(on ? m[ref.key] : '') + '</textarea><div class="actions">' +
+      '<button class="btn small" type="button" data-asksend="' + where + '">' + (on ? 'Save note' : 'Ask teacher') + '</button>' + (on ? '<button class="btn ghost small" type="button" data-askoff="' + where + '">Remove ask</button>' : '') +
+      '<span class="muted small">Your teacher sees it in "Asked".</span></div>';
+    box.classList.remove('hidden'); box.querySelector('textarea').focus(); return;
+  }
+  var s = ev.target.closest('[data-asksend],[data-askoff]');
+  if (s) {
+    var w = s.getAttribute('data-asksend') || s.getAttribute('data-askoff'), r = askRef(w), on2 = s.hasAttribute('data-asksend'), note = on2 ? $('[data-askbox="' + w + '"] textarea').value : '';
+    s.disabled = true;
+    var ref2 = r.set_id ? { set_id: r.set_id, qid: r.qid } : { attempt_id: r.attempt_id };
+    API.askTeacher(S.code, ref2, on2, note).then(function (x) { var m2 = askMap(w); if (x.asked) m2[r.key] = x.note; else delete m2[r.key]; askSync(w); if (w === 'set') hwNav(); })
+      .catch(function (e) { s.disabled = false; $('[data-askbox="' + w + '"]').insertAdjacentHTML('beforeend', '<p class="err">' + esc(API.msg(e)) + '</p>'); });
+  }
+});
+</script>

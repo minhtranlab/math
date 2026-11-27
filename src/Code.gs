@@ -20,7 +20,7 @@
 var SHEET_ID = '1EPtPXzl8hsxJU1IVe5V7ud_SrlyB4GHqdb_cy2G-ufM';          // "MSB – Data" (My Drive › 📚 Academics › Math Skill Bank)
 var LIBRARY_FOLDER_ID = '1c9Mz7_tKbQ5-qZOSu2nxNR8TnAhi0-P3';             // "MSB - Library" (private): questions/<BATCH>.json
 var APP_NAME = 'Math Skill Bank';
-var APP_VERSION = 'v0.4.1 (2026-11-27, #13 TRIG1 live; Practise with teacher starts at the teacher level; Snapshot for students; old Class tabs hidden)';
+var APP_VERSION = 'v0.5.0 (2026-11-27, #8 assignments: builder, set, First Try, Fix, Best Score, Ask teacher, Go over, mistake tags, History)';
 var APP_BUILD = 'dev';  // replaced by the GitHub Action with the commit id → the Sheet update (Update.gs) runs once per deploy
 
 /* ============================== web app ============================== */
@@ -72,7 +72,11 @@ var SETTINGS_DEFAULTS_ = {
   away_min_sec: 2, away_flag_sec: 20,   // leaving the window: logged silently from 2 s; shown to the teacher from 20 s (SML #16, lesson 13)
   ms_window_days: 60,                   // My skills: first-try % over the last 60 days
   class_max_tries: 3,                   // Practise with teacher (#9 v2): tries before the answer is shown
-  desmos_api_key: ''                    // Desmos calculator key (type it in the Sheet; empty = Desmos demo key)
+  desmos_api_key: '',                   // Desmos calculator key (type it in the Sheet; empty = Desmos demo key)
+  mcq_max_tries: 3,                     // assignments (#8, SAT rules): MCQ tries in total incl. the first; typed answers unlimited
+  ask_note_max: 200,                    // Ask teacher: note length
+  autosave_sec: 20,                     // assignments: autosave at least this often (plus on every change, debounced)
+  mistake_types: "Concept Gap; Didn't Understand The Question; Misread A Detail; Careless Calculation; Wrong Input/Format; Others; Not A Mistake"
 };
 var _settings = null;
 function getSettings_() {

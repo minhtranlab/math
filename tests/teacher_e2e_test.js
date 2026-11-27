@@ -36,7 +36,7 @@ async function draw(pg, sel, x0, y0, x1, y1) {
     await shot(sp, 'T9_03_student_home_card');
     await sp.click('[data-start="teacher"]'); await sp.waitForSelector('.ch');
     check(await sp.evaluate(() => S.cur.q.qid) === 'FX-001' && !(await sp.$eval('#q-ts', e => e.classList.contains('hidden'))), 'first question = FX-001; "Practise with teacher" bar shown');
-    check((await sp.$$('#scr-q .tools .tool')).length === 5, 'student tools: Pen · Calculator · Notes · More space · Snapshot');
+    check((await sp.$$('#scr-q .tools .tool')).length === 6 && /Ask teacher/.test(await sp.textContent('#scr-q .tools')), 'student tools: Pen · Calculator · Notes · More space · Snapshot · Ask teacher');
     await sp.click('.ch[data-l="A"]'); await sp.click('#q-check'); await sp.waitForSelector('.fb.no');
     check(/2 tries left/.test(await sp.textContent('#q-fb')), '3 tries: wrong → "2 tries left"');
     await sp.waitForFunction(() => /Saved/.test(document.querySelector('#q-sync').textContent));

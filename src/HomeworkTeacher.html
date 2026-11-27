@@ -1,0 +1,236 @@
+<script>
+/* ===================== MSB — teacher: Assignments · Go over · Asked (#8; SAT Math Lib workflow) =====================
+   Assignments: builder (title · to a student or a class · tick sub-skills: n + E/M/H with live / new counts · from / due) →
+   Pick questions (new first, spread over E/M/H) → Swap per item → Publish; list Current / Past with each student's
+   progress, First Try / Best; Close · Reopen · Delete (only while nobody started).
+   Go over: target + scope (an assignment or a date range) → questions in priority order (most wrong first, then asked,
+   then slow) → one question: the question + tools (pen, calculator, notes, More space, Snapshot) + instant Show answer
+   (key loaded with the panel, teacher only) + each student's tries, time, ask note and the Mistake select
+   (Settings mistake types, then the sub-skill's skill-map tags) — auto-saved, a tag resolves the Ask (Undo reopens it).
+   Asked: the open asks (assignments + practice) → Open (go over that question) · Resolve. */
+var TB = { b: null, pick: null, list: null, go: null, gi: 0, gq: {}, gopen: null, target: '', scope: '' };
+var LVL = { E: 'Easy', M: 'Medium', H: 'Hard' };
+
+/* ---------------- Assignments ---------------- */
+function renderHw(l) {
+  TB.list = l;
+  var h = tbar('Assignments', 'Updated ' + esc(l.read_at)) + '<div class="actions" style="margin-top:0"><button class="btn" type="button" id="hw-new">New assignment</button></div><div id="hw-builder"></div>';
+  var rowsOf = function (list, past) {
+    if (!list.length) return '<p class="empty">' + (past ? 'Nothing here.' : 'No assignments yet.') + '</p>';
+    return list.map(function (a) {
+      return '<div class="panel hwrow"><div class="tbar"><b>' + esc(a.title) + '</b><span class="muted">' + esc(a.who) + ' · ' + a.n + ' questions · from ' + esc(a.from) + (a.due ? ' · due ' + esc(a.due) : '') +
+        ' · done ' + a.done + '/' + a.students.length + '</span><span class="wbtns" style="margin-left:auto">' +
+        '<button class="btn ghost small" type="button" data-hwgo="' + esc(a.assignment_id) + '">Go over</button>' +
+        (past ? '<button class="link" type="button" data-hwact="reopen" data-aid="' + esc(a.assignment_id) + '">Reopen</button>' : '<button class="link" type="button" data-hwact="close" data-aid="' + esc(a.assignment_id) + '">Close</button>') +
+        (a.started ? '' : '<button class="link" type="button" data-hwact="delete" data-aid="' + esc(a.assignment_id) + '">Delete</button>') + '</span></div>' +
+        '<div class="studs">' + a.students.map(function (s) {
+          return '<span class="stud st-' + s.state.replace(' ', '-') + '">' + esc(s.name) + ' · ' + (s.state === 'done' ? 'First Try ' + s.first_try + '/' + a.n + ' · Best ' + s.best + '/' + a.n : s.state === 'in progress' ? esc(s.progress || 'in progress') : 'not started') + '</span>';
+        }).join('') + '</div></div>';
+    }).join('');
+  };
+  h += '<h2 class="h2">Current</h2>' + rowsOf(l.current, false) + '<h2 class="h2">Past</h2>' + rowsOf(l.past, true);
+  $('#t-main').innerHTML = h;
+}
+function hwBuilderOpen(target) {
+  var box = $('#hw-builder'); box.innerHTML = '<div class="panel"><div class="spinner"></div></div>';
+  API.hwBuilder(S.teacher, target || '', true).then(function (b) { TB.b = b; TB.pick = null; TB.target = target || ''; hwBuilderRender(); })
+    .catch(function (e) { box.innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p>'; });
+}
+function hwBuilderRender() {
+  var b = TB.b, keep = TB.form || {};
+  var opt = function (v, t) { return '<option value="' + esc(v) + '"' + (TB.target === v ? ' selected' : '') + '>' + esc(t) + '</option>'; };
+  var cnt = function (c) {
+    if (!c) return '<span class="muted">no questions</span>';
+    return ['E', 'M', 'H'].map(function (d) { return '<span class="dcount">' + d + ' ' + c[d] + (b.members && c[d] ? ' <small>(' + c['f' + d] + ' new)</small>' : '') + '</span>'; }).join(' ');
+  };
+  var h = '<div class="panel" id="hwb"><h3>New assignment</h3><div class="hwform">' +
+    '<label>Title <input class="field sel" id="hwb-title" maxlength="80" placeholder="Homework – ' + esc(b.today) + '" value="' + esc(keep.title || '') + '"></label>' +
+    '<label>To <select class="field sel" id="hwb-to"><option value="">Choose a student or a class</option><optgroup label="Students">' + b.targets.students.map(function (s) { return opt(s.id, s.name); }).join('') + '</optgroup>' +
+    (b.targets.classes.length ? '<optgroup label="Classes">' + b.targets.classes.map(function (c) { return opt(c.id, c.name + ' (' + c.n + ')'); }).join('') + '</optgroup>' : '') + '</select></label>' +
+    '<label>Available from <input class="field sel" type="date" id="hwb-from" value="' + esc(keep.from || b.today) + '"></label>' +
+    '<label>Due <input class="field sel" type="date" id="hwb-due" value="' + esc(keep.due || '') + '"></label></div>' +
+    '<p class="eyebrow">Sub-skills · number of questions · difficulty' + (b.members ? ' · (new = not met by the target yet)' : '') + '</p><div class="tree hwtree">' + b.tree.map(function (t) {
+      return '<h2 class="h2" style="margin-top:12px">' + esc(t.name) + '</h2>' + t.skills.map(function (k) {
+        return '<div class="tk">' + esc(k.name) + '</div>' + k.subs.map(function (u) {
+          var s = (keep.sel || {})[u.id];
+          return '<div class="hwsub' + (u.count ? '' : ' off') + '" data-sub="' + esc(u.id) + '"><label><input type="checkbox" data-hwtick' + (s ? ' checked' : '') + (u.count ? '' : ' disabled') + '> ' + esc(u.name) + '</label>' +
+            '<span class="cnts">' + cnt(u.count) + '</span><span class="hwopts' + (s ? '' : ' hidden') + '"><input type="number" min="1" max="30" class="nin" value="' + (s ? s.n : 2) + '" aria-label="Questions">' +
+            ['E', 'M', 'H'].map(function (d) { return '<label class="dk"><input type="checkbox" data-d="' + d + '"' + ((s ? s.diffs : 'E,M').indexOf(d) >= 0 ? ' checked' : '') + '>' + d + '</label>'; }).join('') + '</span></div>';
+        }).join('');
+      }).join('');
+    }).join('') + '</div><div class="actions"><button class="btn" type="button" id="hwb-pick">Pick questions</button><span class="stamp" id="hwb-msg"></span></div><div id="hwb-picked"></div></div>';
+  $('#hw-builder').innerHTML = h;
+  $('#hwb').scrollIntoView({ block: 'start' });
+}
+function hwForm() {
+  var sel = {}, topics = [];
+  $$('#hwb .hwsub').forEach(function (r) {
+    if (!r.querySelector('[data-hwtick]').checked) return;
+    var u = r.getAttribute('data-sub'), n = Math.max(1, Math.min(30, Number(r.querySelector('.nin').value) || 1)),
+        diffs = $$('[data-d]', r).filter(function (x) { return x.checked; }).map(function (x) { return x.getAttribute('data-d'); }).join(',');
+    sel[u] = { n: n, diffs: diffs }; topics.push({ code: u, n: n, diffs: diffs });
+  });
+  TB.form = { title: $('#hwb-title').value.trim(), from: $('#hwb-from').value, due: $('#hwb-due').value, sel: sel };
+  return { target: $('#hwb-to').value, topics: topics };
+}
+function hwPickRender() {
+  var p = TB.pick, n = 0;
+  var h = '<h2 class="h2">Picked for ' + esc(p.target.title) + '</h2>' + p.topics.map(function (t, ti) {
+    n += t.picked.length;
+    return '<div class="pickt"><b>' + esc(t.name) + '</b> <span class="muted">' + t.picked.length + ' of ' + t.n + ' · ' + t.diffs.split(',').map(function (d) { return LVL[d]; }).join(' + ') + '</span>' +
+      (t.notes.length ? '<p class="warnline">' + esc(t.notes.join(' · ')) + '</p>' : '') + '<div class="cands">' + t.picked.map(function (x, i) {
+        return '<div class="cand"><span class="cq"><b>' + esc(x.qid) + '</b> <span class="muted">' + esc(LVL[x.difficulty] || x.difficulty) + ' · ' + esc(x.status) + '</span><br><span class="pv">' + esc(x.preview) + '</span></span>' +
+               '<button type="button" class="btn ghost small" data-swap="' + ti + ':' + i + '"' + (t.queue.length ? '' : ' disabled') + '>Swap</button></div>';
+      }).join('') + '</div></div>';
+  }).join('') + '<div class="actions"><button class="btn big" type="button" id="hwb-pub"' + (n ? '' : ' disabled') + '>Publish (' + n + ' questions)</button><span class="stamp" id="hwb-pmsg"></span></div>';
+  $('#hwb-picked').innerHTML = h;
+  typeset($('#hwb-picked'));
+}
+$('#t-main').addEventListener('click', function (ev) {
+  var t;
+  if (ev.target.closest('#hw-new')) { TB.form = null; hwBuilderOpen(''); return; }
+  if ((t = ev.target.closest('[data-hwact]'))) {
+    t.disabled = true;
+    API.hwSetStatus(S.teacher, t.getAttribute('data-aid'), t.getAttribute('data-hwact')).then(renderHw).catch(function (e) { t.disabled = false; alertLine(API.msg(e)); });
+    return;
+  }
+  if ((t = ev.target.closest('[data-hwgo]'))) { TB.target = ''; TB.scope = 'a:' + t.getAttribute('data-hwgo'); T.tab = 'go'; openTeacher(true); return; }
+  if (ev.target.closest('#hwb-pick')) {
+    var f = hwForm();
+    if (!f.target) { $('#hwb-msg').textContent = 'Choose a student or a class.'; return; }
+    if (!f.topics.length) { $('#hwb-msg').textContent = 'Tick at least one sub-skill.'; return; }
+    if (f.topics.some(function (x) { return !x.diffs; })) { $('#hwb-msg').textContent = 'Tick Easy, Medium or Hard for every ticked sub-skill.'; return; }
+    $('#hwb-msg').textContent = 'Picking…'; $('#hwb-picked').innerHTML = '<div class="spinner"></div>';
+    API.hwPick(S.teacher, f).then(function (p) { TB.pick = p; TB.pick.spec = f; $('#hwb-msg').textContent = ''; hwPickRender(); })
+      .catch(function (e) { $('#hwb-msg').textContent = API.msg(e); $('#hwb-picked').innerHTML = ''; });
+    return;
+  }
+  if ((t = ev.target.closest('[data-swap]'))) {
+    var ij = t.getAttribute('data-swap').split(':'), tp = TB.pick.topics[+ij[0]], used = {};
+    TB.pick.topics.forEach(function (x) { x.picked.forEach(function (y) { used[y.qid] = 1; }); });
+    var k = tp.queue.findIndex(function (y) { return !used[y.qid]; });
+    if (k < 0) { t.disabled = true; return; }
+    var old = tp.picked[+ij[1]]; tp.picked[+ij[1]] = tp.queue.splice(k, 1)[0]; tp.queue.push(old);
+    hwPickRender(); return;
+  }
+  if ((t = ev.target.closest('#hwb-pub'))) {
+    var fm = TB.form || {}, qids = [];
+    TB.pick.topics.forEach(function (x) { x.picked.forEach(function (y) { qids.push(y.qid); }); });
+    t.disabled = true; $('#hwb-pmsg').textContent = 'Publishing…';
+    API.hwPublish(S.teacher, { title: fm.title, target: TB.pick.spec.target, topics: TB.pick.spec.topics, qids: qids, available_from: fm.from, due: fm.due }).then(function (r) {
+      TB.form = null; TB.pick = null; r.list.read_at = 'now'; renderHw(r.list);
+      $('#hw-builder').innerHTML = '<p class="okline">Published "' + esc(r.title) + '" · ' + r.n + ' questions. It is on the student\'s home page now.</p>';
+    }).catch(function (e) { t.disabled = false; $('#hwb-pmsg').textContent = API.msg(e); });
+    return;
+  }
+  if ((t = ev.target.closest('[data-gorow]'))) { openGo(Number(t.getAttribute('data-gorow'))); return; }
+  if ((t = ev.target.closest('[data-askopen]'))) { askOpen(TB.inbox.asks[Number(t.getAttribute('data-askopen'))]); return; }
+  if ((t = ev.target.closest('[data-askres]'))) { t.disabled = true; API.resolveAsk(S.teacher, t.getAttribute('data-askres')).then(renderAsked).catch(function (e) { t.disabled = false; alertLine(API.msg(e)); }); return; }
+});
+$('#t-main').addEventListener('change', function (ev) {
+  var t = ev.target;
+  if (t.matches('#hwb-to')) { hwForm(); hwBuilderOpen(t.value); return; }
+  if (t.matches('[data-hwtick]')) { t.closest('.hwsub').querySelector('.hwopts').classList.toggle('hidden', !t.checked); return; }
+  if (t.matches('#go-target')) { TB.target = t.value; TB.scope = ''; openTeacher(true); return; }
+  if (t.matches('#go-scope')) { TB.scope = t.value; openTeacher(true); return; }
+});
+
+/* ---------------- Go over ---------------- */
+function renderGo(d) {
+  TB.go = d; TB.target = d.target.id; TB.scope = d.scope;
+  var opt = function (v, t, cur) { return '<option value="' + esc(v) + '"' + (cur === v ? ' selected' : '') + '>' + esc(t) + '</option>'; };
+  var h = tbar('Go over', 'Updated ' + esc(d.read_at)) + '<div class="tbar"><select class="field sel" id="go-target">' + opt('all', 'All students', d.target.id) +
+    '<optgroup label="Students">' + d.targets.students.map(function (s) { return opt(s.id, s.name, d.target.id); }).join('') + '</optgroup>' +
+    (d.targets.classes.length ? '<optgroup label="Classes">' + d.targets.classes.map(function (c) { return opt(c.id, c.name, d.target.id); }).join('') + '</optgroup>' : '') + '</select>' +
+    '<select class="field sel" id="go-scope">' + d.scopes.map(function (s) { return opt(s.id, s.label, d.scope); }).join('') + '</select></div>';
+  h += tTable([
+    ['#', function (r) { return '<button type="button" class="link" data-gorow="' + d.rows.indexOf(r) + '">' + (d.rows.indexOf(r) + 1) + '</button>'; }],
+    ['Question', function (r) { return '<button type="button" class="link" data-gorow="' + d.rows.indexOf(r) + '">' + esc(r.qid) + '</button> <span class="muted">' + esc(LVL[r.difficulty] || r.difficulty) + '</span>'; }],
+    ['Sub-skill', function (r) { return esc(r.subskill_name); }],
+    ['', function (r) { return '<span class="gsum g' + r.group + '">' + esc(r.summary) + '</span>'; }],
+    ['Students', function (r) { return esc(r.students.map(function (s) { return s.name.split(' ')[0]; }).join(', ')); }]
+  ], d.rows, 'Nothing to go over in this scope.');
+  $('#t-main').innerHTML = h;
+}
+function openGo(i) {
+  var rows = TB.gopen || TB.go.rows; if (!rows.length) return;
+  TB.gi = Math.max(0, Math.min(rows.length - 1, i));
+  var r = rows[TB.gi];
+  show('scr-go'); location.hash = 'goover';
+  $('#go-pos').textContent = (TB.gi + 1) + ' / ' + rows.length; $('#go-prev').disabled = TB.gi === 0; $('#go-next').disabled = TB.gi === rows.length - 1;
+  $('#go-info').innerHTML = '<b>' + esc(r.summary) + '</b> <span class="stamp">' + esc((TB.go && TB.go.target.title) || '') + '</span>';
+  $('#go-sub').textContent = r.subskill_name + ' · ' + (LVL[r.difficulty] || r.difficulty); $('#go-qid').textContent = r.qid;
+  $('#go-ans').classList.remove('on'); $('#go-ans').textContent = 'Show answer';
+  $('#go-card').innerHTML = '<div class="spinner"></div>'; goStudents(r);
+  var draw = function (g) {
+    var q = g.q, h = '<div class="stem">' + q.stem_html + '</div>';
+    q.figures.forEach(function (f) { h += '<div class="fig"><img src="' + esc(f.src) + '" alt="' + esc(f.alt) + '"></div>'; });
+    if (q.type === 'mcq') h += '<div class="choices">' + q.choices.map(function (c) { return '<div class="ch" data-gl="' + esc(c.label) + '"><span class="lt">' + esc(c.label) + '</span><span>' + c.html + '</span></div>'; }).join('') + '</div>';
+    h += '<div class="tkey hidden" id="go-key"><span class="lab">Answer</span> ' + (g.answer.label ? '<b>' + esc(g.answer.label) + '</b> ' : '') + g.answer.html + (g.hint_html ? '<div class="hint"><span class="lab">Hint</span>' + g.hint_html + '</div>' : '') + '</div>';
+    $('#go-card').innerHTML = h; toolsHost('go-work', 'G:' + r.qid); typeset($('#go-card'));
+  };
+  if (TB.gq[r.qid]) draw(TB.gq[r.qid]);
+  else API.goQuestion(S.teacher, r.qid).then(function (g) { TB.gq[r.qid] = g; if ((TB.gopen || TB.go.rows)[TB.gi] === r) { draw(g); goStudents(r); } })
+    .catch(function (e) { $('#go-card').innerHTML = '<p class="err">' + esc(API.msg(e)) + '</p>'; });
+}
+function mistakeSelect(s, opts) {
+  var cur = s.mistake_type, o = '<option value="">Mistake…</option><optgroup label="Mistake types">' + opts.types.map(function (t) { return '<option' + (cur === t ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</optgroup>';
+  if (opts.tags.length) o += '<optgroup label="This sub-skill">' + opts.tags.map(function (t) { return '<option value="' + esc(t.id) + '"' + (cur === t.id ? ' selected' : '') + '>' + esc(t.text) + '</option>'; }).join('') + '</optgroup>';
+  return '<select class="field sel msel">' + o + '</select>';
+}
+function goStudents(r) {
+  var g = TB.gq[r.qid], opts = g ? g.mistakes : { types: [], tags: [] }, tagText = {};
+  (opts.tags || []).forEach(function (t) { tagText[t.id] = t.text; });
+  $('#go-students').innerHTML = '<h2 class="h2">Students (' + r.students.length + ')</h2>' + r.students.map(function (s, i) {
+    var tries = s.tries.map(function (t) { return '<span class="' + (t.ok ? 'ok-t' : 'no-t') + '">' + (t.ok ? '✓ ' : '✗ ') + esc(t.a) + '</span>'; }).join(' · ') || '<span class="muted">no answer</span>';
+    return '<div class="gostud" data-si="' + i + '"><div class="tbar"><b>' + esc(s.name) + '</b><span class="muted">' + esc(s.where) + ' · ' + esc(s.date) + '</span>' +
+      '<span>' + tries + '</span><span class="muted">' + s.time_s + ' s' + (s.pace === 'slow' ? ' · slow' : '') + (s.locked ? ' · no tries left' : '') + '</span>' +
+      (s.auto ? '<span class="chip ns" title="from the wrong answer">' + esc(tagText[s.auto] || s.auto) + '</span>' : '') + '</div>' +
+      (s.ask ? '<p class="asknote">Asked: ' + esc(s.ask_note || '(no note)') + '</p>' : '') +
+      (s.right1 && !s.ask ? '' : '<div class="tbar">' + mistakeSelect(s, opts) + '<input class="field sel mnote" maxlength="300" placeholder="Note" value="' + esc(s.mistake_note || '') + '"><span class="stamp msaved"></span></div>') + '</div>';
+  }).join('');
+}
+function goTag(box, undo) {
+  var r = (TB.gopen || TB.go.rows)[TB.gi], s = r.students[Number(box.getAttribute('data-si'))], sel = box.querySelector('.msel'), note = box.querySelector('.mnote'), st = box.querySelector('.msaved');
+  var type = undo ? '' : sel.value; st.textContent = 'Saving…';
+  API.tagMistake(S.teacher, s.ref, type, note.value, undo).then(function (x) {
+    s.mistake_type = type; s.mistake_note = note.value; if (x.ask_resolved) s.ask = false; if (x.ask_reopened) s.ask = true;
+    if (undo) sel.value = '';
+    st.innerHTML = undo ? 'Cleared' : 'Saved ✓' + (x.ask_resolved ? ' · Ask resolved' : '') + (x.review_added ? ' · in Review' : '') + ' <button type="button" class="link" data-mundo>Undo</button>';
+  }).catch(function (e) { st.textContent = API.msg(e); });
+}
+$('#go-students').addEventListener('change', function (ev) { var b = ev.target.closest('.gostud'); if (b && ev.target.matches('.msel')) goTag(b, false); });
+$('#go-students').addEventListener('focusout', function (ev) { var b = ev.target.closest('.gostud'); if (b && ev.target.matches('.mnote') && b.querySelector('.msel').value) goTag(b, false); });
+$('#go-students').addEventListener('click', function (ev) { var b = ev.target.closest('.gostud'); if (b && ev.target.closest('[data-mundo]')) goTag(b, true); });
+$('#go-prev').addEventListener('click', function () { openGo(TB.gi - 1); });
+$('#go-next').addEventListener('click', function () { openGo(TB.gi + 1); });
+$('#go-back').addEventListener('click', function () { var back = TB.gopen ? 'asked' : 'go'; TB.gopen = null; T.tab = back; openTeacher(true); });
+$('#go-ans').addEventListener('click', function () {
+  var k = $('#go-key'); if (!k) return;
+  var on = k.classList.toggle('hidden') === false, r = (TB.gopen || TB.go.rows)[TB.gi], g = TB.gq[r.qid];
+  this.classList.toggle('on', on); this.textContent = on ? 'Hide answer' : 'Show answer';
+  $$('#go-card .ch').forEach(function (c) { c.classList.toggle('right', on && g && c.getAttribute('data-gl') === g.answer.label); });
+  if (on) { typeset(k); penSize(); }
+});
+
+/* ---------------- Asked inbox ---------------- */
+function renderAsked(d) {
+  TB.inbox = d;
+  var h = tbar('Asked', 'Updated ' + esc(d.read_at)) + tTable([
+    ['When', function (a) { return esc(a.date); }], ['Student', function (a) { return esc(a.student); }], ['Where', function (a) { return esc(a.where); }],
+    ['Question', function (a) { return esc(a.qid) + ' <span class="muted">' + esc(a.subskill) + '</span>'; }],
+    ['Note', function (a) { return esc(a.note) || '<span class="muted">—</span>'; }],
+    ['', function (a) { var i = d.asks.indexOf(a); return '<span class="wbtns"><button class="btn small" type="button" data-askopen="' + i + '">Open</button><button class="btn ghost small" type="button" data-askres="' + esc(a.ask_id) + '">Resolve</button></span>'; }]
+  ], d.asks, 'No open questions from students.');
+  $('#t-main').innerHTML = h;
+  var tab = $('[data-tab="asked"]'); if (tab) tab.textContent = 'Asked' + (d.asks.length ? ' (' + d.asks.length + ')' : '');
+}
+function askOpen(a) {
+  var scope = a.ref.set_id ? 'all' : 'all';
+  API.goOver(S.teacher, 'st:' + a.student_code, scope, true).then(function (d) {
+    var r = d.rows.filter(function (x) { return x.qid === a.qid; })[0];
+    if (!r) { alertLine('This answer is not in Go over.'); return; }
+    TB.go = d; TB.gopen = [r]; openGo(0);
+  }).catch(function (e) { alertLine(API.msg(e)); });
+}
+</script>
