@@ -4,7 +4,7 @@ const { chromium } = require('playwright');
 // Show answer, pen, More space, real Desmos + MathQuill + html2canvas Snapshot, Assign next (served once), then closes it.
 const URL = process.env.WRAP ? 'https://minhtranlab.github.io/math/' : 'https://script.google.com/macros/s/AKfycbzoYJ8e0oE7iE9vM4P9cuHGk4j8jbepHcVXdUIHltdt2IadYDDW6ZjNH60Vy2PZPE5e/exec', OUT = (process.env.SHOTS || 'tests/.work/live') + '/'; require('fs').mkdirSync(OUT, { recursive: true });
 let P = 0, F = 0; const check = (c, m) => { c ? P++ : F++; console.log((c ? '  ✓ ' : '  ✗ FAIL ') + m); };
-async function app(page) { for (let i = 0; i < 80; i++) { for (const f of page.frames()) { try { if (await f.$('#login-code')) return f; } catch (e) {} } await page.waitForTimeout(500); } throw new Error('no app'); }
+async function app(page) { for (let i = 0; i < 160; i++) { for (const f of page.frames()) { try { if (await f.$('#login-code')) return f; } catch (e) {} } await page.waitForTimeout(500); } throw new Error('no app'); }
 async function answerSomething(f) { if (await f.$('#q-num')) { await f.fill('#q-num', '0.123'); } else { const c = await f.$$('.ch:not([disabled])'); await c[c.length - 1].click(); } }
 (async () => {
   const b = await chromium.launch(), errs = [], W = { timeout: 40000 };
