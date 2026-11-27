@@ -15,8 +15,11 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="icon" href="icon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="icon-180.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
 <!--
-  Math Skill Bank — nice link (copied from SAT Math Lib #39). This page only shows the Apps Script web app full screen.
+  Math Skill Bank — nice link (copied from SAT Math Lib #39). iPad: Safari → Share → Add to Home Screen opens it full screen
+  (manifest.webmanifest + apple tags + icons, #9 v2). This page only shows the Apps Script web app full screen.
   The app, its data and every rule stay on the Apps Script side; the script.google.com link keeps working.
   Students and the teacher sign in on the same screen. noindex: search engines do not list it. LIGHT ONLY.
   Source: site/ on main; published to the gh-pages branch by tools/publish_site.sh.
@@ -40,7 +43,7 @@
     <p class="muted" id="slow" hidden>Taking long? <a id="direct" href="#" rel="noopener">Open Math Skill Bank directly</a></p>
   </div>
 </div>
-<iframe id="app" title="Math Skill Bank" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+<iframe id="app" title="Math Skill Bank" allow="clipboard-read; clipboard-write; fullscreen; web-share"></iframe>
 <script>
   (function () {
     var APP_URL = 'https://script.google.com/macros/s/AKfycbzoYJ8e0oE7iE9vM4P9cuHGk4j8jbepHcVXdUIHltdt2IadYDDW6ZjNH60Vy2PZPE5e/exec';
