@@ -88,6 +88,7 @@ async function draw(pg, sel, x0, y0, x1, y1) {
     await tp.click('#snap-close');
     // assign next
     await tp.click('#tq-next'); await tp.waitForSelector('#nx-list .cands, #nx-list .empty');
+    check(!!(await tp.$('#nx-sub optgroup[label="Another sub-skill"] option[value="TRIG.RT.SIDE_NUM"]')), 'Assign next: another sub-skill can be chosen too (SIDE_NUM listed)');
     await tp.click('[data-nxlv="H"]'); await tp.waitForSelector('[data-nxpick="FX-006"]');
     await shot(tp, 'T9_07_teacher_assign_next');
     await tp.click('[data-nxpick="FX-006"]'); await tp.waitForFunction(() => /Next: FX-006/.test(document.querySelector('#tq-info').textContent));

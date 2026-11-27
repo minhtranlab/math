@@ -120,7 +120,7 @@ function snapshot(host, btn) {
       onclone: function (doc) { doc.documentElement.classList.add('snapping'); } });   // inset shadows → borders; teacher-only state line hidden
   }).then(function (cv) {
     var url = cv.toDataURL('image/png');
-    $('#snap-img').src = url; $('#snap-dl').href = url;
+    $('#snap-img').src = url; $('#snap-dl').href = url; $('#snap-share').textContent = 'Share';
     $('#snap-dl').download = 'question_' + (new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')) + '.png';
     TL.snapBlob = null; cv.toBlob(function (b) { TL.snapBlob = b; });
     var canShare = !!(navigator.canShare && window.File);
@@ -151,8 +151,9 @@ document.addEventListener('click', function (ev) {
   if (ev.target.closest('#snap-close')) { $('#snap').classList.add('hidden'); return; }
   if (ev.target.closest('#snap-share')) {
     var f = TL.snapBlob && new File([TL.snapBlob], 'question.png', { type: 'image/png' });
-    if (f && navigator.canShare && navigator.canShare({ files: [f] })) navigator.share({ files: [f] }).catch(function () {});
-    else $('#snap-share').textContent = 'Share not allowed here — press and hold the picture';
+    var no = function (e) { if (!e || e.name !== 'AbortError') $('#snap-share').textContent = 'Share is not allowed here — press and hold the picture'; };
+    if (f && navigator.canShare && navigator.canShare({ files: [f] })) navigator.share({ files: [f], title: 'Question' }).catch(no);
+    else no();
   }
 });
 document.addEventListener('input', function (ev) { if (ev.target.closest('#notes-lines')) { clearTimeout(TL.ns); TL.ns = setTimeout(notesSave, 400); } });

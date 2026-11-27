@@ -1,8 +1,8 @@
 const { chromium } = require('playwright');
-// Live check of "Practise with teacher" (#9 v2) on the deployed app: TEA=<teacher code> S1=<TEST student> node tools/live_check_teacher.js
+// Live check of "Practise with teacher" (#9 v2) on the deployed app: TEA=<teacher code> S1=<TEST student> [WRAP=1 = through the GitHub Pages link] node tools/live_check_teacher.js
 // Codes only from env (never in files or logs). Assigns TRIG.RT to S1, checks the top card, Live + Refresh (no auto),
 // Show answer, pen, More space, real Desmos + MathQuill + html2canvas Snapshot, Assign next (served once), then closes it.
-const URL = 'https://script.google.com/macros/s/AKfycbzoYJ8e0oE7iE9vM4P9cuHGk4j8jbepHcVXdUIHltdt2IadYDDW6ZjNH60Vy2PZPE5e/exec', OUT = (process.env.SHOTS || 'tests/.work/live') + '/'; require('fs').mkdirSync(OUT, { recursive: true });
+const URL = process.env.WRAP ? 'https://minhtranlab.github.io/math/' : 'https://script.google.com/macros/s/AKfycbzoYJ8e0oE7iE9vM4P9cuHGk4j8jbepHcVXdUIHltdt2IadYDDW6ZjNH60Vy2PZPE5e/exec', OUT = (process.env.SHOTS || 'tests/.work/live') + '/'; require('fs').mkdirSync(OUT, { recursive: true });
 let P = 0, F = 0; const check = (c, m) => { c ? P++ : F++; console.log((c ? '  ✓ ' : '  ✗ FAIL ') + m); };
 async function app(page) { for (let i = 0; i < 80; i++) { for (const f of page.frames()) { try { if (await f.$('#login-code')) return f; } catch (e) {} } await page.waitForTimeout(500); } throw new Error('no app'); }
 async function answerSomething(f) { if (await f.$('#q-num')) { await f.fill('#q-num', '0.123'); } else { const c = await f.$$('.ch:not([disabled])'); await c[c.length - 1].click(); } }
@@ -49,7 +49,11 @@ async function answerSomething(f) { if (await f.$('#q-num')) { await f.fill('#q-
   t0 = Date.now(); await t.click('#tq-snap'); await t.waitForSelector('#snap:not(.hidden)', W);
   const sn = await t.evaluate(() => new Promise(r => { const i = $('#snap-img'); const f = () => r([i.naturalWidth, i.naturalHeight]); if (i.complete && i.naturalWidth) f(); else i.onload = f; }));
   check(sn[0] > 500 && sn[1] > 500, 'Snapshot PNG ' + sn.join('×') + ' (' + (Date.now() - t0) + ' ms)');
-  await tp.screenshot({ path: OUT + 'L9v2_05_teacher_snapshot.png' }); await t.click('#snap-close');
+  await tp.screenshot({ path: OUT + 'L9v2_05_teacher_snapshot.png' });
+  const dl = await Promise.all([tp.waitForEvent('download', { timeout: 15000 }), t.click('#snap-dl')]).then(r => r[0]).catch(() => null);
+  check(!!dl, 'Snapshot Download works inside the app frame' + (dl ? ' (' + dl.suggestedFilename() + ')' : ' — BLOCKED'));
+  if (dl) await dl.saveAs(OUT + 'L9v2_snapshot_download.png');
+  await t.click('#snap-close');
   await t.click('#tq-next'); await t.waitForSelector('#nx-list .cand, #nx-list .empty', W);
   let want = '';
   for (const sub of await t.$$eval('#nx-sub option', o => o.map(x => x.value))) {

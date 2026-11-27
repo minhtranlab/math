@@ -137,7 +137,11 @@ function nextPanel() {
   var subs = d.session.subs.slice(), cur = d.current, curSub = '';
   if (cur) { var m = subs.filter(function (u) { return u.name === cur.subskill; })[0]; curSub = m ? m.id : ''; }
   W.cands = { sub: curSub || subs[0].id, level: cur ? cur.difficulty : (d.session.level || 'E') };
-  p.innerHTML = '<div class="tbar"><b>Next question for ' + esc(d.student.name) + '</b><select id="nx-sub" class="field sel">' + subs.map(function (u) { return '<option value="' + esc(u.id) + '"' + (u.id === W.cands.sub ? ' selected' : '') + '>' + esc(u.name) + '</option>'; }).join('') + '</select>' +
+  var inScope = {}; subs.forEach(function (u) { inScope[u.id] = 1; });
+  var other = []; ((W.d && W.d.tree) || []).forEach(function (t) { t.skills.forEach(function (k) { k.subs.forEach(function (u) { if (u.n_live && !inScope[u.id]) other.push(u); }); }); });
+  var opt = function (u) { return '<option value="' + esc(u.id) + '"' + (u.id === W.cands.sub ? ' selected' : '') + '>' + esc(u.name) + '</option>'; };
+  p.innerHTML = '<div class="tbar"><b>Next question for ' + esc(d.student.name) + '</b><select id="nx-sub" class="field sel"><optgroup label="In this practice">' + subs.map(opt).join('') + '</optgroup>' +
+    (other.length ? '<optgroup label="Another sub-skill">' + other.map(opt).join('') + '</optgroup>' : '') + '</select>' +
     '<span class="seg">' + ['E', 'M', 'H'].map(function (L) { return '<button type="button" class="mini' + (W.cands.level === L ? ' on' : '') + '" data-nxlv="' + L + '">' + LVW[L] + '</button>'; }).join('') + '</span>' +
     '<span class="stamp" id="nx-msg"></span></div><div id="nx-list"><div class="spinner"></div></div><p class="muted small">Only the NEXT question — after it the app picks again.</p>';
   p.classList.remove('hidden'); $('#tq-next').classList.add('on');

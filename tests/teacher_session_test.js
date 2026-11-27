@@ -72,6 +72,14 @@ check(q.q.qid === 'FX-001', 'first question = the chosen FX-001');
 call('submitTry', 'FX-T03', q.attempt_id, 'B', fast, true);
 q = call('nextQuestion', 'FX-T03', { teacher: sid3b });
 check(q.q.qid === 'FX-007', 'the begin question is used once → the app picks the unseen Easy item FX-007');
+call('submitTry', 'FX-T03', q.attempt_id, 'A', fast, true);
+let L3 = call('tsAssignNext', TEACHER, 'FX-T03', 'FX-002');
+check(L3.session.next_qid === 'FX-002', 'Assign next can take a question from another sub-skill (SIDE_NUM, not in this practice)');
+q = call('nextQuestion', 'FX-T03', { teacher: sid3b });
+check(q.q.qid === 'FX-002' && T('Attempts').slice(-1)[0].session_id === sid3b, 'served once inside the practice (session id kept)');
+call('submitTry', 'FX-T03', q.attempt_id, '5.00', fast, true);
+q = call('nextQuestion', 'FX-T03', { teacher: sid3b });
+check(['TRIG.RT.LABEL', 'TRIG.RT.ANGLE'].indexOf(T('Attempts').slice(-1)[0].subskill) >= 0, 'then the app picks inside the scope again (' + q.q.qid + ')');
 let n0 = call('nextQuestion', 'FX-T03', { teacher: sid });
 check(!n0.ok && /closed/.test(n0.msg), "a student cannot open someone else's / an old assignment");
 
