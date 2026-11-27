@@ -103,9 +103,12 @@ async function draw(pg, sel, x0, y0, x1, y1) {
     check(!!(await sp.$('#q-work .blank')) && await sp.evaluate(() => PEN.strokes.length) === 1, 'student: More space + pen work on the question screen');
     await sp.click('[data-pt="off"]');
     await shot(sp, 'T9_08_student_question_tools');
+    E.st.latency = 1500;                                              // the save is slow: the student presses Next before it comes back
     await sp.click('.ch[data-l="C"]'); await sp.click('#q-check'); await sp.waitForSelector('.fb.ok'); await sp.click('#q-next');
+    await sleep(2200); E.st.latency = 0;
     await sp.waitForFunction(() => S.cur && S.cur.q.qid !== 'FX-006');
     check(await sp.evaluate(() => !$('#q-work .blank') && PEN.strokes.length === 0), 'new question: space + ink cleared');
+    check(E.errors.length === 0, 'Next before the save came back: no page error, the late reply is ignored');
     const at = E.st.gas.table('Attempts').filter(a => a.kind === 'teacher');
     check(at.length === 3 && at.every(a => a.session_id === ts[0].session_id), 'Sheet: 3 attempts kind "teacher" with the session id');
     await tp.click('#tq-refresh'); await tp.waitForFunction(q => document.querySelector('#tq-qid').textContent !== 'FX-006' && document.querySelector('#tq-qid').textContent !== 'FX-001', null);

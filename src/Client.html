@@ -149,7 +149,7 @@ function timing() {
 
 /* ---------------- one question ---------------- */
 function openQuestion(after) {
-  location.hash = 'q'; show('scr-q');
+  location.hash = 'q'; show('scr-q'); S.cur = null;                 // a late reply for the last question is ignored from here on
   $('#q-card').innerHTML = '<div class="spinner"></div>'; $('#q-sub').textContent = ''; $('#q-cnt').textContent = '';
   $('#q-ts').classList.toggle('hidden', !S.scope.teacher);
   toolsHost('q-work', '');
@@ -261,7 +261,8 @@ function finish() {
 function hint() {
   var b = $('#q-hint'); if (!b || b.disabled) return;
   b.disabled = true;
-  API.useHint(S.code, S.cur.attempt_id).then(function (r) { if (r.ok) showHint(r.hint_html); else b.disabled = false; })
+  var aid = S.cur.attempt_id;
+  API.useHint(S.code, aid).then(function (r) { if (!S.cur || S.cur.attempt_id !== aid) return; if (r.ok) showHint(r.hint_html); else b.disabled = false; })
     .catch(function (e) { b.disabled = false; $('#q-fb').innerHTML = '<div class="fb no">' + esc(API.msg(e)) + '</div>'; });
 }
 
