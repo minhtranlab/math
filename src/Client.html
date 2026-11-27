@@ -197,6 +197,7 @@ $('#q-card').addEventListener('click', function (ev) {
   if (ev.target.closest('#q-hint')) { hint(); return; }
   if (ev.target.closest('#q-next')) { openQuestion(S.cur && S.cur.q.qid); return; }
 });
+function syncText(t) { var el = $('#q-sync'); if (el) el.textContent = t; }   // the student may already be on the next question
 function tryCount() { return (S.cur.tries || []).length; }
 function check() {
   if (S.busy || !S.cur) return;
@@ -206,17 +207,20 @@ function check() {
   var sec = timing(), ok = S.spec ? msbGrade_(S.spec, ans) : null, tryNo = tryCount() + 1, max = S.cur.max_tries;
   S.cur.tries = (S.cur.tries || []).concat([{ try_no: tryNo, answer: ans, correct: !!ok }]);
   if (ok !== null) feedback(ok, tryNo >= max, ans, null);           // instant: the server's own rule, in the browser
-  $('#q-sync').textContent = 'Saving…';
-  API.submitTry(S.code, S.cur.attempt_id, ans, sec, ok).then(function (r) {
-    if (!r.ok) { $('#q-sync').textContent = ''; if (r.finished) finish(null); else { S.busy = false; S.cur.tries.pop(); $('#q-fb').innerHTML = '<div class="fb no">' + esc(r.msg || 'Not saved.') + '</div>'; } return; }
-    $('#q-sync').textContent = 'Saved ✓';
+  syncText('Saving…');
+  var aid = S.cur.attempt_id;
+  API.submitTry(S.code, aid, ans, sec, ok).then(function (r) {
+    if (!S.cur || S.cur.attempt_id !== aid) return;                  // already on the next question (saved anyway)
+    if (!r.ok) { syncText(''); if (r.finished) finish(null); else { S.busy = false; S.cur.tries.pop(); $('#q-fb').innerHTML = '<div class="fb no">' + esc(r.msg || 'Not saved.') + '</div>'; } return; }
+    syncText('Saved ✓');
     if (ok === null || r.mismatch) feedback(r.correct, r.finished, ans, r);   // the server is the judge
     else if (r.finished && !r.correct) feedback(false, true, ans, r);
     if (r.progress) showProgress(r.progress);
     tryStart();
   }).catch(function (e) {
+    if (!S.cur || S.cur.attempt_id !== aid) return;
     S.cur.tries.pop(); S.busy = false;
-    $('#q-sync').textContent = '';
+    syncText('');
     $('#q-fb').innerHTML = '<div class="fb no">Not saved — ' + esc(API.msg(e)) + ' Press Check again.</div>';
   });
 }
